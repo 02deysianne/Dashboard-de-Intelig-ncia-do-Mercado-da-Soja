@@ -1,0 +1,7 @@
+﻿variavel_explicativa,melhor_defasagem_meses,spearman_rho_amostra_completa,spearman_p,spearman_p_fdr,significativo_fdr_005,sinal_estavel_nos_3_subperiodos,observacao
+brent_usd_barril,6,-0.1215005457608562,0.0339161543017272,0.1336475189554375,False,True,associação estatística; não implica causalidade
+cambio_usd_brl,0,0.3248537895047593,4.47414343661782e-09,9.395701216897422e-08,True,True,associação estatística; não implica causalidade
+exportacao_soja_ton,5,0.1453618922872187,0.010898884227937,0.0880994372923588,False,True,associação estatística; não implica causalidade
+fertilizantes_indice,5,-0.1162275482644743,0.0421818697502588,0.1336475189554375,False,True,associação estatística; não implica causalidade
+ipca_num_indice,1,-0.1306549797940229,0.0213917951365102,0.1283507708190615,False,True,associação estatística; não implica causalidade
+soja_internacional_usd_t,0,0.4899266883521554,3.510566864024993e-20,1.4744380828904973e-18,True,True,associação estatística; não implica causalidade

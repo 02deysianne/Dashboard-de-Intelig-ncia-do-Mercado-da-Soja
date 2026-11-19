@@ -1,0 +1,10 @@
+﻿variavel,descricao,unidade,fonte,papel
+data,"mês de referência, representado pelo primeiro dia do mês",data mensal,integração,chave temporal
+preco_soja_pr,preço nominal mensal da soja no Paraná,conforme série tratada do DERAL,DERAL,variável-alvo principal
+preco_soja_real_dez2025,preço da soja corrigido pelo IPCA para valores de dezembro de 2025,mesma unidade do preço nominal,DERAL + IBGE,variável auxiliar de contexto
+cambio_usd_brl,câmbio mensal dólar americano por real,BRL por USD,Banco Central do Brasil,explicativa
+soja_internacional_usd_t,preço internacional mensal da soja,USD por tonelada,World Bank,explicativa
+brent_usd_barril,preço mensal do petróleo Brent,USD por barril,World Bank,explicativa
+fertilizantes_indice,índice mensal de fertilizantes,índice,World Bank,explicativa
+exportacao_soja_ton,volume mensal exportado de soja pelo Brasil,toneladas,Comex Stat,explicativa
+ipca_num_indice,IPCA número-índice com base dezembro de 1993 igual a 100,número-índice,"IBGE/SIDRA, tabela 1737",auxiliar para correção monetária e contexto

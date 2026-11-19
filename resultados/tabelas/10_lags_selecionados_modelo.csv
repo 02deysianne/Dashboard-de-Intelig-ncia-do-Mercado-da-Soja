@@ -1,0 +1,6 @@
+﻿indicador,coluna_origem,lag_meses,n_pares,rho_treino,p_bruto,variavel_modelo
+cambio_usd_brl,var_cambio_usd_brl_pct,1,238,0.2041717275,0.001542066901,var_cambio_usd_brl_pct_lag1
+soja_internacional,var_soja_internacional_pct,1,238,0.2660020996,3.221466179e-05,var_soja_internacional_pct_lag1
+brent,var_brent_pct,6,233,-0.08514439089,0.1953078492,var_brent_pct_lag6
+fertilizantes,var_fertilizantes_pct,5,234,-0.127777264,0.05091937911,var_fertilizantes_pct_lag5
+exportacao_soja,var_exportacao_soja_pct,3,236,0.1590216692,0.01446321427,var_exportacao_soja_pct_lag3

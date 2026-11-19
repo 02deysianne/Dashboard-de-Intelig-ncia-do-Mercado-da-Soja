@@ -1,0 +1,6 @@
+﻿indicador,variavel,lag_meses,coeficiente_padronizado_ridge,valor_absoluto,posicao_importancia_relativa
+soja_internacional,var_soja_internacional_pct_lag1,1,1.166584503,1.166584503,1
+cambio_usd_brl,var_cambio_usd_brl_pct_lag1,1,1.136602962,1.136602962,2
+brent,var_brent_pct_lag6,6,-0.4375737565,0.4375737565,3
+fertilizantes,var_fertilizantes_pct_lag5,5,-0.2122148722,0.2122148722,4
+exportacao_soja,var_exportacao_soja_pct_lag3,3,0.1612938377,0.1612938377,5

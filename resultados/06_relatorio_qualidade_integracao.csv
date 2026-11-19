@@ -1,0 +1,8 @@
+﻿fonte,arquivo,linhas,datas_invalidas,datas_duplicadas,meses_faltantes,linhas_fora_periodo,valores_ausentes,valores_invalidos,primeiro_mes,ultimo_mes
+deral,soja_pr_mensal_2000_2025.csv,312,0,0,0,0,0,0,2000-01-01,2025-12-01
+bcb,cambio_usd_brl_mensal_2000_2025.csv,312,0,0,0,0,0,0,2000-01-01,2025-12-01
+soja_internacional,soja_internacional_mensal_2000_2025.csv,312,0,0,0,0,0,0,2000-01-01,2025-12-01
+brent,brent_mensal_2000_2025.csv,312,0,0,0,0,0,0,2000-01-01,2025-12-01
+fertilizantes,fertilizantes_indice_mensal_2000_2025.csv,312,0,0,0,0,0,0,2000-01-01,2025-12-01
+comex,04_comex_soja_mensal_2000_2025.csv,312,0,0,0,0,0,0,2000-01-01,2025-12-01
+ipca,05_ipca_indice_mensal_2000_2025.csv,312,0,0,0,0,0,0,2000-01-01,2025-12-01

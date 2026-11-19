@@ -1,0 +1,18 @@
+{
+    "projeto": "Previsão e Análise de Soja - PR",
+    "data_geracao": "2026-11-02 22:26:38",
+    "total_observacoes": 301,
+    "periodo_inicial": "2000-12-01 00:00:00",
+    "periodo_final": "2025-12-01 00:00:00",
+    "variaveis_incluidas": [
+        "soja_internacional_usd_t",
+        "brent_usd_barril",
+        "cambio_usd_brl",
+        "fertilizantes_indice",
+        "var_mensal_soja",
+        "var_mensal_brent",
+        "var_mensal_cambio",
+        "ma_12m_soja",
+        "ma_12m_fertilizantes"
+    ]
+}

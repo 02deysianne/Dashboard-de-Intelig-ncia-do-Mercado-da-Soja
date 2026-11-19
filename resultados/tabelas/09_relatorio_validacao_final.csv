@@ -1,0 +1,10 @@
+﻿checagem,aprovada
+312_meses,True
+datas_sem_duplicidade,True
+periodo_completo,True
+sem_ausentes_series_principais,True
+sem_infinitos,True
+precos_positivos,True
+cambio_positivo,True
+ipca_positivo,True
+exportacao_nao_negativa,True

@@ -1,0 +1,26 @@
+﻿item,valor,descricao
+periodo_base,2000-01 a 2025-12,Base mensal validada com 312 registros
+periodo_treino,2000-01 a 2019-12,240 meses disponíveis para desenvolvimento
+periodo_teste,2020-01 a 2025-12,72 meses reservados para comparação final
+meses_base,312,Um registro por mês
+meses_treino,240,Antes de remover defasagens iniciais
+meses_treino_modelagem,233,Após excluir registros incompletos no treino
+meses_teste_modelagem,72,Exatamente 72 meses
+n_indicadores_modelo,5,Todos os cinco indicadores com lag 1 a 6
+tipo_alvo,variação nominal mensal (%),IPCA não participa da regressão
+selecao_lags,Spearman absoluto apenas no treino,Recalculada dentro de cada dobra de validação
+validacao_interna,TimeSeriesSplit 5 dobras de 24 meses,Janela crescente e ordem temporal respeitada
+alpha_ridge_selecionado,100.0,Menor RMSE médio nas dobras de treino
+modelo_destaque,Baseline,Escolhido pelo RMSE da validação interna
+teste_usado_para_selecao,não,"O teste final não altera lags, alpha, variáveis ou regras"
+baseline,variação mensal = 0%,Preço reconstruído igual ao preço do mês anterior
+preco_reconstruido,preço anterior observado × (1 + variação prevista/100),"Avaliação retrospectiva um passo à frente, sem previsão recursiva"
+classe_alta_modelo,variação > 0,Não alta inclui variação igual a zero
+correcao_multiplos_testes,Benjamini-Hochberg em 30 testes,Testes de Spearman lags 1–6 × cinco indicadores
+criterios_sinal,"FDR < 0,05; |rho| >= 0,20; sinal estável em 3 subperíodos",Subperíodos definidos só no treino
+indicadores_sinal,2,No máximo três
+limites_sinais,quartis 25 e 75 calculados só no treino,Mesmos limites aplicados ao teste
+meses_com_sinal,38,Meses com pontuação diferente de zero no teste
+acertos_sinal,18,Alta exige variação > 0; baixa exige variação < 0
+taxa_acerto_sinal_pct,47.368421052631575,Indefinida se não foram emitidos sinais
+limitacao,correlação não demonstra causalidade,Sinal não é previsão garantida nem recomendação comercial

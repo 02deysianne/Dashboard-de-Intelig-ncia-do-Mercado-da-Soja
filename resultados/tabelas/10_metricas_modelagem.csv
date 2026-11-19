@@ -1,0 +1,4 @@
+﻿modelo,n_treino_efetivo,n_teste,alpha_ridge,rmse_cv_treino,modelo_destaque_cv,r2_variacao,mae_variacao_pct_pontos,rmse_variacao_pct_pontos,mae_preco,rmse_preco,mape_preco_pct,acuracia_direcao,acuracia_balanceada_direcao
+Baseline,233,72,,5.060460743,True,-0.0207758475,3.831607508,5.276126028,5.054497222,7.011329224,3.794629141,0.4444444444,0.5
+Regressão Linear,233,72,,98.35750432,False,0.001567448385,4.181737214,5.218063187,5.629250187,7.155601732,4.175345184,0.5138888889,0.5
+Ridge,233,72,100,65.12699011,False,0.05350802058,3.934440491,5.080523177,5.292274302,6.949606626,3.930458246,0.4722222222,0.446875
