@@ -101,7 +101,6 @@ def normalizar_data(df):
 
 # ----------------------------- LEITURA --------------------------
 APP_DIR = Path(__file__).resolve().parent
-
 ROOTS = [
     APP_DIR / "resultados" / "tabelas",
     APP_DIR / "resultados",
@@ -111,42 +110,22 @@ ROOTS = [
 def localizar_arquivo(nome):
     for root in ROOTS:
         candidate = root / nome
-        if candidate.exists() and candidate.is_file():
-            return candidate
-
+        if candidate.exists() and candidate.is_file(): return candidate
     return None
 
 
 @st.cache_data(show_spinner=False)
 def carregar_csv_flexivel(nome):
     path = localizar_arquivo(nome)
-
-    if not path:
-        return pd.DataFrame()
-
+    if not path: return pd.DataFrame()
     for sep in [None, ",", ";", "\t"]:
         try:
-            df = pd.read_csv(
-                path,
-                sep=sep,
-                engine="python",
-                encoding="utf-8-sig"
-            )
-
-            if df.shape[1] > 1 or sep is not None:
-                # Remove BOM e espaços dos nomes das colunas
-                df.columns = (
-                    df.columns
-                    .str.replace("\ufeff", "", regex=False)
-                    .str.strip()
-                )
-
-                return df
-
-        except Exception:
-            pass
-
+            df = pd.read_csv(path, sep=sep, engine="python", encoding="utf-8-sig")
+            df.columns = [str(c).replace("\ufeff", "").strip() for c in df.columns]
+            if df.shape[1] > 1 or sep is not None: return df
+        except Exception: pass
     return pd.DataFrame()
+
 
 @st.cache_data(show_spinner=False)
 def carregar_dados_principais():
@@ -157,7 +136,8 @@ def carregar_dados_principais():
             if path.suffix.lower() == ".parquet": return pd.read_parquet(path)
             for sep in [None, ",", ";", "\t"]:
                 try:
-                    df = pd.read_csv(path, sep=sep, engine="python")
+                    df = pd.read_csv(path, sep=sep, engine="python", encoding="utf-8-sig")
+                    df.columns = [str(c).replace("\ufeff", "").strip() for c in df.columns]
                     if not df.empty: return df
                 except Exception: pass
         except Exception: pass
@@ -175,16 +155,50 @@ def carregar_metadata():
 
 @st.cache_data(show_spinner=False)
 def carregar_deral():
+    """Carrega e normaliza a série mensal de preços do DERAL."""
     path = localizar_arquivo("deral_preco_soja_pr.csv")
-    if not path: return pd.DataFrame()
-    try:
-        df = pd.read_csv(path, sep=None, engine="python")
-        if "data" in df.columns: df["data"] = pd.to_datetime(df["data"], errors="coerce", dayfirst=True)
-        if "preco_soja_pr" in df.columns: df["preco_soja_pr"] = pd.to_numeric(df["preco_soja_pr"], errors="coerce")
-        if {"data", "preco_soja_pr"}.issubset(df.columns):
-            return df.dropna(subset=["data", "preco_soja_pr"]).sort_values("data")
-    except Exception: pass
-    return pd.DataFrame()
+    if path is None:
+        return pd.DataFrame(columns=["data", "preco_soja_pr"])
+
+    # Testa os separadores mais comuns e remove o BOM do cabeçalho.
+    df = pd.DataFrame()
+    for sep in [None, ",", ";", "\t"]:
+        try:
+            tentativa = pd.read_csv(
+                path, sep=sep, engine="python", encoding="utf-8-sig"
+            )
+            tentativa.columns = [
+                str(col).replace("\ufeff", "").strip().lower()
+                for col in tentativa.columns
+            ]
+            if {"data", "preco_soja_pr"}.issubset(tentativa.columns):
+                df = tentativa
+                break
+        except Exception:
+            continue
+
+    if df.empty:
+        return pd.DataFrame(columns=["data", "preco_soja_pr"])
+
+    # Converte datas sem assumir que o arquivo esteja em um único formato.
+    df["data"] = pd.to_datetime(
+        df["data"].astype(str).str.strip(), errors="coerce", dayfirst=True
+    )
+
+    # Aceita números no formato 1234.56 ou brasileiro 1.234,56.
+    preco = df["preco_soja_pr"].astype(str).str.strip()
+    preco = preco.str.replace("R$", "", regex=False).str.replace(" ", "", regex=False)
+    tem_virgula = preco.str.contains(",", regex=False)
+    preco.loc[tem_virgula] = (
+        preco.loc[tem_virgula]
+        .str.replace(".", "", regex=False)
+        .str.replace(",", ".", regex=False)
+    )
+    df["preco_soja_pr"] = pd.to_numeric(preco, errors="coerce")
+
+    df = df.dropna(subset=["data", "preco_soja_pr"])
+    df = df.sort_values("data").drop_duplicates(subset=["data"], keep="last")
+    return df[["data", "preco_soja_pr"]].reset_index(drop=True)
 
 def filtrar_periodo(df, inicio, fim):
     if df is None or df.empty: return pd.DataFrame(), None
