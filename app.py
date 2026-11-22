@@ -130,18 +130,34 @@ def carregar_csv_flexivel(nome):
 
 @st.cache_data(show_spinner=False)
 def carregar_dados_principais():
-    for nome in ["dados_consolidados_dashboard.parquet", "dados_consolidados_dashboard.csv"]:
+    # Prefer the CSV that was verified; avoid silently selecting a stale/invalid parquet.
+    nomes_obrigatorios = {
+        "data", "soja_internacional_usd_t", "brent_usd_barril",
+        "cambio_usd_brl", "fertilizantes_indice"
+    }
+    for nome in ["dados_consolidados_dashboard.csv", "dados_consolidados_dashboard.parquet"]:
         path = localizar_arquivo(nome)
-        if not path: continue
+        if not path:
+            continue
         try:
-            if path.suffix.lower() == ".parquet": return pd.read_parquet(path)
-            for sep in [None, ",", ";", "\t"]:
-                try:
-                    df = pd.read_csv(path, sep=sep, engine="python", encoding="utf-8-sig")
-                    df.columns = [str(c).replace("\ufeff", "").strip() for c in df.columns]
-                    if not df.empty: return df
-                except Exception: pass
-        except Exception: pass
+            if path.suffix.lower() == ".parquet":
+                df = pd.read_parquet(path)
+            else:
+                # This dataset is comma-separated. Use the explicit delimiter first.
+                df = pd.read_csv(path, sep=",", encoding="utf-8-sig")
+            df.columns = [str(c).replace("\ufeff", "").strip().lower() for c in df.columns]
+            # Validate before returning: a stale or one-column read must not block fallback.
+            if df.empty or not nomes_obrigatorios.issubset(set(df.columns)):
+                continue
+            datas = pd.to_datetime(df["data"], errors="coerce")
+            if datas.notna().sum() == 0:
+                continue
+            df["data"] = datas
+            for col in nomes_obrigatorios - {"data"}:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+            return df
+        except Exception:
+            continue
     return pd.DataFrame()
 
 
@@ -501,6 +517,9 @@ if pagina == "🏠 Visão Geral":
     # que a junção do preço estadual não interfira na identificação dos indicadores.
     base_ind_raw = carregar_dados_principais()
     base_ind_raw, data_ind = normalizar_data(base_ind_raw)
+    if not base_ind_raw.empty and data_ind is None and "data" in base_ind_raw.columns:
+        base_ind_raw["data"] = pd.to_datetime(base_ind_raw["data"], errors="coerce")
+        data_ind = "data" if base_ind_raw["data"].notna().any() else None
     if not base_ind_raw.empty and data_ind:
         base_ind_raw[data_ind] = pd.to_datetime(base_ind_raw[data_ind], errors="coerce")
         base_ind_raw = base_ind_raw.dropna(subset=[data_ind])
@@ -520,7 +539,7 @@ if pagina == "🏠 Visão Geral":
         def converter_indicador(serie):
             texto = serie.astype(str).str.strip().str.replace(" ", "", regex=False)
             tem_virgula = texto.str.contains(",", regex=False).any()
-            tem_ponto = texto.str.contains(r"\\.", regex=True).any()
+            tem_ponto = texto.str.contains(r"\.", regex=True).any()
             if tem_virgula and tem_ponto:
                 texto = texto.str.replace(".", "", regex=False).str.replace(",", ".", regex=False)
             elif tem_virgula:
