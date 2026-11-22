@@ -100,12 +100,20 @@ def normalizar_data(df):
 
 
 # ----------------------------- LEITURA --------------------------
-ROOTS = [Path("resultados/tabelas"), Path("resultados"), Path(".")]
+APP_DIR = Path(__file__).resolve().parent
+
+ROOTS = [
+    APP_DIR / "resultados" / "tabelas",
+    APP_DIR / "resultados",
+    APP_DIR,
+]
 
 def localizar_arquivo(nome):
     for root in ROOTS:
         candidate = root / nome
-        if candidate.exists() and candidate.is_file(): return candidate
+        if candidate.exists() and candidate.is_file():
+            return candidate
+
     return None
 
 
