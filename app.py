@@ -213,12 +213,13 @@ def preparar_figura(fig, altura=360):
     fig.update_layout(
         template="plotly_white", height=altura, margin=dict(l=12, r=14, t=45, b=12),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="DM Sans", size=11, color="#526158"),
+        font=dict(family="DM Sans", size=11, color="#000000"),
         legend=dict(title="", orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, font=dict(size=10)),
         hoverlabel=dict(bgcolor="white", font_size=11), showlegend=True,
     )
-    fig.update_xaxes(showgrid=False, linecolor="#E5EBE5", tickfont=dict(color="#78867D"))
-    fig.update_yaxes(gridcolor="#EDF1ED", zeroline=False, tickfont=dict(color="#78867D"))
+    fig.update_xaxes(showgrid=False, linecolor="#000000", tickfont=dict(color="#000000"), title_font=dict(color="#000000"))
+    fig.update_yaxes(gridcolor="#EDF1ED", zeroline=False, tickfont=dict(color="#000000"), title_font=dict(color="#000000"))
+    fig.update_layout(legend=dict(font=dict(color="#000000")), title_font=dict(color="#000000"))
     return fig
 
 def titulo_secao(titulo, descricao=None):
@@ -322,11 +323,12 @@ with st.sidebar:
     date_min = date(2000, 1, 1)
     date_max = date(2025, 12, 31)
     date_range = st.date_input(
-        "Intervalo",
+        "Período (selecione as datas inicial e final)",
         value=(date_min, date_max),
         min_value=date_min,
         max_value=date_max,
         format="DD/MM/YYYY",
+        help="Use as datas inicial e final para mudar o período mensal exibido nos gráficos. Limites: 01/01/2000 a 31/12/2025.",
     )
     if isinstance(date_range, (tuple, list)) and len(date_range) == 2:
         start_date, end_date = date_range
@@ -505,17 +507,33 @@ if pagina == "🏠 Visão Geral":
         }
         colunas_indice = []
         nomes_indice = {}
-        colunas_existentes = {str(c).lower(): c for c in df_base.columns}
+        colunas_existentes = {str(c).strip().lower(): c for c in df_base.columns}
+
+        def converter_indicador(serie):
+            # Aceita números, strings com vírgula decimal e separador de milhar brasileiro.
+            texto = serie.astype(str).str.strip().str.replace(" ", "", regex=False)
+            tem_virgula = texto.str.contains(",", regex=False).any()
+            tem_ponto = texto.str.contains("\\.", regex=True).any()
+            if tem_virgula and tem_ponto:
+                texto = texto.str.replace(".", "", regex=False).str.replace(",", ".", regex=False)
+            elif tem_virgula:
+                texto = texto.str.replace(",", ".", regex=False)
+            return pd.to_numeric(texto, errors="coerce")
+
+        # Resolve nomes reais de colunas e tenta converter, mesmo se vierem como texto.
         for nome, aliases in candidatos.items():
             achou = next((colunas_existentes[a.lower()] for a in aliases if a.lower() in colunas_existentes), None)
-            if achou and pd.api.types.is_numeric_dtype(df_base[achou]):
-                colunas_indice.append(achou)
-                nomes_indice[achou] = nome
+            if achou:
+                convertida = converter_indicador(df_base[achou])
+                if convertida.notna().sum() >= 2:
+                    colunas_indice.append(achou)
+                    nomes_indice[achou] = nome
         if colunas_indice:
             base_ind = df_base[[coluna_data] + colunas_indice].copy().sort_values(coluna_data)
             linhas = []
             for coluna in colunas_indice:
-                serie = pd.to_numeric(base_ind[coluna], errors="coerce")
+                serie = converter_indicador(base_ind[coluna])
+                base_ind[coluna] = serie
                 validos = serie.dropna()
                 if len(validos) >= 2 and validos.iloc[0] != 0:
                     base_ind[nomes_indice[coluna]] = (serie / validos.iloc[0]) * 100
