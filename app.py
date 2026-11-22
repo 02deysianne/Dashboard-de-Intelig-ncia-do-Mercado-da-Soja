@@ -7,6 +7,7 @@ import json
 import re
 import unicodedata
 from pathlib import Path
+from datetime import date
 
 import pandas as pd
 import streamlit as st
@@ -314,17 +315,25 @@ with st.sidebar:
     st.markdown('<div class="brand-sub">Inteligência e monitoramento<br>do mercado da soja</div>', unsafe_allow_html=True)
     st.markdown("---")
     st.markdown('<div class="side-caption"><b>NAVEGAÇÃO</b></div>', unsafe_allow_html=True)
-    pagina = st.radio("Seções", [" Visão Geral", " Análise Exploratória", " Correlações e Lags", " Sinais de Atenção", " Modelagem Ridge"], label_visibility="collapsed")
+    pagina = st.radio("Seções", ["🏠 Visão Geral", "📊 Análise Exploratória", "🔗 Correlações e Lags", "⚠️ Sinais de Atenção", "🤖 Modelagem Ridge"], label_visibility="collapsed")
     st.markdown("---")
     st.markdown('<div class="side-caption"><b>PERÍODO</b></div>', unsafe_allow_html=True)
-    valid_dates = df_base[coluna_data].dropna() if coluna_data and not df_base.empty else pd.Series(dtype="datetime64[ns]")
-    if len(valid_dates):
-        date_min, date_max = valid_dates.min().date(), valid_dates.max().date()
-    else: date_min, date_max = pd.Timestamp("2000-01-01").date(), pd.Timestamp.today().date()
-    date_range = st.date_input("Intervalo", value=(date_min, date_max), min_value=date_min, max_value=date_max, format="DD/MM/YYYY")
-    if isinstance(date_range, (tuple, list)) and len(date_range) == 2: start_date, end_date = date_range
-    elif isinstance(date_range, (tuple, list)) and len(date_range) == 1: start_date, end_date = date_range[0], date_max
-    else: start_date, end_date = date_min, date_max
+    # Limites fixos do estudo: o usuário não pode selecionar datas fora deste intervalo.
+    date_min = date(2000, 1, 1)
+    date_max = date(2025, 12, 31)
+    date_range = st.date_input(
+        "Intervalo",
+        value=(date_min, date_max),
+        min_value=date_min,
+        max_value=date_max,
+        format="DD/MM/YYYY",
+    )
+    if isinstance(date_range, (tuple, list)) and len(date_range) == 2:
+        start_date, end_date = date_range
+    elif isinstance(date_range, (tuple, list)) and len(date_range) == 1:
+        start_date, end_date = date_range[0], date_max
+    else:
+        start_date, end_date = date_min, date_max
     st.markdown("---")
     st.markdown('<div class="side-caption"><b>ESTÁGIO SUPERVISIONADO</b><br>Deysianne Souza<br>Orientador: Prof. Diego B. Santi<br>UNICENTRO · 2026</div>', unsafe_allow_html=True)
 
@@ -337,7 +346,7 @@ else: deral_filtrado = pd.DataFrame()
 st.markdown('<div class="eyebrow">PAINEL DE INTELIGÊNCIA DO AGRONEGÓCIO</div>', unsafe_allow_html=True)
 
 # ============================ HOME =============================
-if pagina == " Visão Geral":
+if pagina == "🏠 Visão Geral":
     st.markdown('<div class="page-title">Painel de Inteligência do Mercado da Soja</div>', unsafe_allow_html=True)
     st.markdown(
         '<div class="page-subtitle">Paraná · DERAL · Análise histórica de janeiro de 2000 a dezembro de 2025</div>',
@@ -490,8 +499,9 @@ if pagina == " Visão Geral":
         candidatos = {
             "Preço internacional da soja": ["soja_internacional_usd_t", "soja_internacional_usd"],
             "Câmbio": ["cambio_brl_usd", "cambio_usd_brl", "cambio", "dolar"],
-            "Petróleo Brent": ["brent", "petroleo", "petróleo"],
-            "Fertilizantes": ["fertilizantes", "indice_fertilizantes", "índice_fertilizantes"],
+            # Nomes exatos das colunas existentes em dados_consolidados_dashboard.csv
+            "Petróleo Brent": ["brent_usd_barril", "brent", "petroleo", "petróleo"],
+            "Fertilizantes": ["fertilizantes_indice", "fertilizantes", "indice_fertilizantes", "índice_fertilizantes"],
         }
         colunas_indice = []
         nomes_indice = {}
@@ -561,7 +571,7 @@ if pagina == " Visão Geral":
     )
 
 # ====================== EXPLORATÓRIA ===========================
-elif pagina == " Análise Exploratória":
+elif pagina == "📊 Análise Exploratória":
     st.markdown('<div class="page-title">Análise Exploratória</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Estatísticas descritivas, padrões sazonais e variações mensais.</div>', unsafe_allow_html=True)
     tab1, tab2, tab3 = st.tabs(["Estatísticas", "Sazonalidade", "Variações"])
@@ -576,7 +586,7 @@ elif pagina == " Análise Exploratória":
 
 
 # ====================== CORRELAÇÕES/LAGS =======================
-elif pagina == " Correlações e Lags":
+elif pagina == "🔗 Correlações e Lags":
     st.markdown('<div class="page-title">Correlações e Defasagens</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Relações contemporâneas e defasadas entre indicadores, incluindo defasagens de 0 a 6 meses.</div>', unsafe_allow_html=True)
     corr_files = [("08_correlacoes_niveis.csv", "Matriz de correlação entre os indicadores", "heatmap"), ("08_melhores_defasagens_spearman.csv", "Melhores defasagens — Spearman", "auto"), ("08_correlacoes_defasagens_0_6_meses.csv", "Correlações por defasagem de 0 a 6 meses", "auto")]
@@ -588,7 +598,7 @@ elif pagina == " Correlações e Lags":
         if idx < len(corr_files)-1: st.markdown("---")
 
 # ====================== SINAIS DE ATENÇÃO ======================
-elif pagina == " Sinais de Atenção":
+elif pagina == "⚠️ Sinais de Atenção":
     st.markdown('<div class="page-title">Sinais de Atenção</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Monitoramento a partir das regras e indicadores calculados no projeto.</div>', unsafe_allow_html=True)
     signal_files = [("10_resumo_sinais.csv", "Resumo dos sinais identificados"), ("10_regras_sinais_atencao.csv", "Critérios e regras de disparo"), ("10_sinais_atencao_mensais.csv", "Evolução mensal dos sinais")]
@@ -601,7 +611,7 @@ elif pagina == " Sinais de Atenção":
         if idx < len(signal_files)-1: st.markdown("---")
 
 # =========================== RIDGE =============================
-elif pagina == " Modelagem Ridge":
+elif pagina == "🤖 Modelagem Ridge":
     st.markdown('<div class="page-title">Modelagem Ridge</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Métricas, coeficientes estimados e comparação de previsões no conjunto de teste.</div>', unsafe_allow_html=True)
     metrics = carregar_csv_flexivel("10_metricas_modelagem.csv")
