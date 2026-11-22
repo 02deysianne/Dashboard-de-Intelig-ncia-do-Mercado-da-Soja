@@ -497,64 +497,70 @@ if pagina == "🏠 Visão Geral":
         "Indicadores relacionados ao mercado",
         "Séries reescalonadas para base 100 no primeiro mês disponível. O índice permite comparar movimentos, não os valores absolutos."
     )
-    if not df_base.empty and coluna_data:
+    # Carrega a base consolidada separadamente da série DERAL para garantir
+    # que a junção do preço estadual não interfira na identificação dos indicadores.
+    base_ind_raw = carregar_dados_principais()
+    base_ind_raw, data_ind = normalizar_data(base_ind_raw)
+    if not base_ind_raw.empty and data_ind:
+        base_ind_raw[data_ind] = pd.to_datetime(base_ind_raw[data_ind], errors="coerce")
+        base_ind_raw = base_ind_raw.dropna(subset=[data_ind])
+        base_ind_raw = base_ind_raw[
+            (base_ind_raw[data_ind].dt.date >= start_date) &
+            (base_ind_raw[data_ind].dt.date <= end_date)
+        ].sort_values(data_ind)
+
         candidatos = {
             "Preço internacional da soja": ["soja_internacional_usd_t", "soja_internacional_usd"],
-            "Câmbio": ["cambio_brl_usd", "cambio_usd_brl", "cambio", "dolar"],
-            # Nomes exatos das colunas existentes em dados_consolidados_dashboard.csv
+            "Câmbio": ["cambio_usd_brl", "cambio_brl_usd", "cambio", "dolar"],
             "Petróleo Brent": ["brent_usd_barril", "brent", "petroleo", "petróleo"],
             "Fertilizantes": ["fertilizantes_indice", "fertilizantes", "indice_fertilizantes", "índice_fertilizantes"],
         }
-        colunas_indice = []
-        nomes_indice = {}
-        colunas_existentes = {str(c).strip().lower(): c for c in df_base.columns}
 
+        # Normaliza valores que podem ter vindo como texto (ex.: "1.234,56").
         def converter_indicador(serie):
-            # Aceita números, strings com vírgula decimal e separador de milhar brasileiro.
             texto = serie.astype(str).str.strip().str.replace(" ", "", regex=False)
             tem_virgula = texto.str.contains(",", regex=False).any()
-            tem_ponto = texto.str.contains("\\.", regex=True).any()
+            tem_ponto = texto.str.contains(r"\\.", regex=True).any()
             if tem_virgula and tem_ponto:
                 texto = texto.str.replace(".", "", regex=False).str.replace(",", ".", regex=False)
             elif tem_virgula:
                 texto = texto.str.replace(",", ".", regex=False)
             return pd.to_numeric(texto, errors="coerce")
 
-        # Resolve nomes reais de colunas e tenta converter, mesmo se vierem como texto.
+        colunas_norm = {str(c).strip().lower(): c for c in base_ind_raw.columns}
+        series_ind = {}
         for nome, aliases in candidatos.items():
-            achou = next((colunas_existentes[a.lower()] for a in aliases if a.lower() in colunas_existentes), None)
-            if achou:
-                convertida = converter_indicador(df_base[achou])
-                if convertida.notna().sum() >= 2:
-                    colunas_indice.append(achou)
-                    nomes_indice[achou] = nome
-        if colunas_indice:
-            base_ind = df_base[[coluna_data] + colunas_indice].copy().sort_values(coluna_data)
-            linhas = []
-            for coluna in colunas_indice:
-                serie = converter_indicador(base_ind[coluna])
-                base_ind[coluna] = serie
-                validos = serie.dropna()
-                if len(validos) >= 2 and validos.iloc[0] != 0:
-                    base_ind[nomes_indice[coluna]] = (serie / validos.iloc[0]) * 100
-                    linhas.append(nomes_indice[coluna])
-            if linhas:
-                longo_ind = base_ind[[coluna_data] + linhas].melt(
-                    id_vars=coluna_data, var_name="Indicador", value_name="Índice (base 100)"
+            col_real = next((colunas_norm[a.lower()] for a in aliases if a.lower() in colunas_norm), None)
+            if col_real is None:
+                continue
+            valores = converter_indicador(base_ind_raw[col_real])
+            valores = valores.replace([float("inf"), float("-inf")], pd.NA)
+            if valores.notna().sum() >= 2:
+                series_ind[nome] = valores
+
+        if series_ind:
+            base_plot = pd.DataFrame({data_ind: base_ind_raw[data_ind]})
+            for nome, valores in series_ind.items():
+                primeira = valores.dropna().iloc[0]
+                if primeira != 0:
+                    base_plot[nome] = (valores / primeira) * 100
+
+            plot_cols = [c for c in series_ind if c in base_plot.columns]
+            if plot_cols:
+                long_ind = base_plot[[data_ind] + plot_cols].melt(
+                    id_vars=data_ind, var_name="Indicador", value_name="Índice (base 100)"
                 ).dropna()
                 fig_ind = px.line(
-                    longo_ind, x=coluna_data, y="Índice (base 100)", color="Indicador",
-                    labels={coluna_data: "Período", "Índice (base 100)": "Índice (base 100)"}
+                    long_ind, x=data_ind, y="Índice (base 100)", color="Indicador",
+                    labels={data_ind: "Período", "Índice (base 100)": "Índice (base 100)"}
                 )
                 fig_ind.update_traces(line=dict(width=2.3))
-                fig_ind.add_hline(y=100, line_dash="dot", line_color="#9AA69D")
+                fig_ind.add_hline(y=100, line_dash="dot", line_color="#000000")
                 st.plotly_chart(preparar_figura(fig_ind, 350), use_container_width=True)
-            else:
-                st.info("Os indicadores disponíveis não possuem valores suficientes para formar índices comparáveis.")
         else:
-            st.info("Não foram identificadas, na base carregada, colunas numéricas dos indicadores de mercado esperados.")
+            st.warning("Os indicadores foram carregados, mas não possuem valores numéricos suficientes para gerar o gráfico.")
     else:
-        st.info("A base consolidada com indicadores não está disponível para montar a comparação.")
+        st.error("Não foi possível carregar a base consolidada de indicadores ou identificar a coluna de datas.")
 
     # Destaques fixos dos resultados do estudo completo (não variam com o filtro visual).
     st.markdown("---")
