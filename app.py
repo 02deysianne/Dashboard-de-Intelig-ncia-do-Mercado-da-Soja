@@ -35,7 +35,7 @@ section[data-testid="stSidebar"] [data-testid="stDateInput"] input {
 .brand-sub,.side-caption {color:#C8D9CD !important;font-size:11px;line-height:1.5;}
 .eyebrow {color:#47745A;text-transform:uppercase;font-weight:800;letter-spacing:1.5px;font-size:10px;margin-bottom:6px;}
 .page-title {font-weight:800;color:#183C30;letter-spacing:-.7px;font-size:30px;margin:0;}
-.page-subtitle {color:#718078;font-size:13px;margin:4px 0 16px;}
+.page-subtitle {color:#222222;font-size:13px;margin:4px 0 16px;}
 .hero {background:linear-gradient(115deg,#173D32 0%,#286247 68%,#477D55 100%);border-radius:16px;padding:21px 24px;color:white;margin:2px 0 18px;}
 .hero-kicker {color:#D5E6D8;font-size:10px;letter-spacing:1.4px;text-transform:uppercase;font-weight:800;}
 .hero-title {color:white;font-size:24px;font-weight:800;margin:6px 0;}
@@ -45,7 +45,7 @@ section[data-testid="stSidebar"] [data-testid="stDateInput"] input {
 .kpi-value {color:#193F31;font-size:23px;font-weight:800;margin-top:7px;line-height:1.15;}
 .kpi-note {color:#849087;font-size:10px;margin-top:4px;}
 .section-heading {color:#214635;font-size:17px;font-weight:800;margin:7px 0 2px;}
-.section-caption {color:#7B8980;font-size:11px;margin-bottom:10px;}
+.section-caption {color:#222222;font-size:11px;margin-bottom:10px;}
 .note-box {background:#EDF4ED;border-left:4px solid #4C805B;border-radius:8px;padding:10px 13px;color:#355440;font-size:12px;}
 .footer-line {color:#91A097;font-size:10px;text-align:center;padding:16px 0 4px;}
 div[data-testid="stMetric"] {background:white;border:1px solid #E5EBE5;padding:12px 14px;border-radius:12px;}
@@ -93,9 +93,13 @@ def normalizar_data(df):
     candidatos = {"data", "date", "periodo", "período", "mes", "mês", "month"}
     for col in df.columns:
         if str(col).strip().lower() in candidatos:
-            convertido = pd.to_datetime(df[col], errors="coerce", dayfirst=True)
-            if convertido.notna().any():
-                out = df.copy(); out[col] = convertido
+            raw = df[col].astype(str).str.strip()
+            iso = raw.str.match(r"^\d{4}-\d{2}-\d{2}", na=False)
+            converted = pd.Series(pd.NaT, index=df.index, dtype="datetime64[ns]")
+            converted.loc[iso] = pd.to_datetime(raw.loc[iso], errors="coerce", yearfirst=True)
+            converted.loc[~iso] = pd.to_datetime(raw.loc[~iso], errors="coerce", dayfirst=True)
+            if converted.notna().any():
+                out = df.copy(); out[col] = converted
                 return out, col
     return df, None
 
@@ -256,64 +260,86 @@ def grafico(df, titulo, altura=360, chave=None, tipo="auto"):
         st.info(f"Não há dados disponíveis para: {titulo}."); return
     data, col_data = normalizar_data(df.copy())
     data = data.dropna(axis=1, how="all")
+    # Corrige valores numéricos exportados como texto (decimal brasileiro).
+    for c in data.columns:
+        if c == col_data: continue
+        if data[c].dtype == object:
+            txt = data[c].astype(str).str.strip().str.replace(" ", "", regex=False)
+            if txt.str.contains(",", regex=False).any():
+                if txt.str.contains(r"\.", regex=True).any(): txt = txt.str.replace(".", "", regex=False)
+                txt = txt.str.replace(",", ".", regex=False)
+            num = pd.to_numeric(txt, errors="coerce")
+            if num.notna().sum() >= max(2, int(len(data)*0.5)): data[c] = num
     numericas = data.select_dtypes(include="number").columns.tolist()
     categoricas = [c for c in data.columns if c not in numericas and c != col_data]
-    # Matriz de correlação (coluna inicial categórica com nomes de variáveis)
-    if tipo == "heatmap" or (tipo == "auto" and len(numericas) >= 2 and len(data) == len(numericas) and categoricas):
+    # Matrix correlation: first column contains variable names, rest numeric columns are variables.
+    if tipo == "heatmap" or (len(data) == len(numericas) and categoricas and len(numericas) >= 2):
         try:
-            categ = categoricas[0]
-            mat = data.set_index(categ)[numericas]
-            if mat.shape[0] and mat.shape[1]:
-                fig = px.imshow(mat, text_auto=".2f", aspect="auto", color_continuous_scale=["#B85C4A", "#F7F5EA", "#347653"], labels={"color":"Correlação"})
-                fig.update_layout(title=titulo)
-                st.plotly_chart(preparar_figura(fig, altura), use_container_width=True, key=chave); return
+            index_col = categoricas[0]
+            matrix = data.set_index(index_col)[numericas].apply(pd.to_numeric, errors="coerce")
+            matrix.index = matrix.index.map(nome_amigavel); matrix.columns = matrix.columns.map(nome_amigavel)
+            fig = px.imshow(matrix, text_auto=".2f", aspect="auto", zmin=-1, zmax=1,
+                color_continuous_scale=["#B85C4A", "#F7F5EA", "#347653"],
+                labels={"color":"Correlação", "x":"Indicador", "y":"Indicador"})
+            fig.update_layout(title=None, xaxis_tickangle=-35)
+            st.plotly_chart(preparar_figura(fig, max(440, altura)), use_container_width=True, key=chave); return
         except Exception: pass
+    # Long-format correlation results: display sorted bars and reference zero.
+    if tipo == "heatmap" and numericas:
+        ycol = next((c for c in numericas if any(k in c.lower() for k in ["correl", "rho", "coef"])), numericas[-1])
+        labels = [c for c in data.columns if c not in numericas and c != col_data]
+        if labels:
+            labelcol = labels[0]
+            plot = data[[labelcol, ycol]].copy().dropna().sort_values(ycol)
+            plot[labelcol] = plot[labelcol].astype(str)
+            fig = px.bar(plot, x=ycol, y=labelcol, orientation="h", color=ycol,
+                color_continuous_scale=["#B85C4A", "#F7F5EA", "#347653"],
+                labels={ycol:"Coeficiente", labelcol:"Comparação"})
+            fig.update_layout(title=None, coloraxis_showscale=False)
+            fig.add_vline(x=0, line_color="#222", line_width=1)
+            st.plotly_chart(preparar_figura(fig, max(440, altura)), use_container_width=True, key=chave); return
     if col_data and numericas:
-        long = data[[col_data]+numericas].melt(id_vars=col_data, var_name="Indicador", value_name="Valor")
+        long = data[[col_data]+numericas].melt(id_vars=col_data, var_name="Indicador", value_name="Valor").dropna()
         long["Indicador"] = long["Indicador"].map(nome_amigavel)
         fig = px.line(long, x=col_data, y="Valor", color="Indicador", labels={col_data:"Período", "Valor":"Valor", "Indicador":"Indicador"})
-        fig.update_traces(line=dict(width=2.2)); fig.update_layout(title=titulo)
+        fig.update_traces(line=dict(width=2.4)); fig.update_layout(title=None)
         st.plotly_chart(preparar_figura(fig, altura), use_container_width=True, key=chave); return
     if numericas and categoricas:
         categoria = categoricas[0]
         if len(numericas) == 1:
-            y = numericas[0]; plot = data[[categoria, y]].copy()
-            plot[categoria] = plot[categoria].astype(str); plot[y] = pd.to_numeric(plot[y], errors="coerce")
-            plot = plot.dropna(subset=[y])
-            fig = px.bar(plot, x=categoria, y=y, color=categoria, labels={categoria:nome_amigavel(categoria), y:nome_amigavel(y)})
+            y = numericas[0]; plot = data[[categoria, y]].copy().dropna(subset=[y])
+            plot[categoria] = plot[categoria].astype(str)
+            fig = px.bar(plot, x=categoria, y=y, labels={categoria:nome_amigavel(categoria), y:nome_amigavel(y)}, color_discrete_sequence=["#4C805B"])
         else:
-            plot = data[[categoria]+numericas].melt(id_vars=categoria, var_name="Indicador", value_name="Valor")
+            plot = data[[categoria]+numericas].melt(id_vars=categoria, var_name="Indicador", value_name="Valor").dropna()
             plot["Indicador"] = plot["Indicador"].map(nome_amigavel)
-            fig = px.bar(plot, x=categoria, y="Valor", color="Indicador", barmode="group", labels={categoria:nome_amigavel(categoria), "Valor":"Valor", "Indicador":"Indicador"})
-        fig.update_layout(title=titulo)
-        st.plotly_chart(preparar_figura(fig, altura), use_container_width=True, key=chave); return
+            fig = px.bar(plot, x=categoria, y="Valor", color="Indicador", barmode="group")
+        fig.update_layout(title=None); st.plotly_chart(preparar_figura(fig, altura), use_container_width=True, key=chave); return
     if numericas:
-        resumo = data[numericas].mean(numeric_only=True).reset_index()
-        resumo.columns = ["Indicador", "Média"]
+        resumo = data[numericas].mean(numeric_only=True).reset_index(); resumo.columns = ["Indicador", "Média"]
         resumo["Indicador"] = resumo["Indicador"].map(nome_amigavel)
         fig = px.bar(resumo, x="Indicador", y="Média", color="Indicador", labels={"Indicador":"Indicador", "Média":"Média"})
-        fig.update_layout(title=titulo)
-        st.plotly_chart(preparar_figura(fig, altura), use_container_width=True, key=chave); return
-    coluna = data.columns[0]
-    freq = data[coluna].astype(str).value_counts().head(20).reset_index()
-    freq.columns = [nome_amigavel(coluna), "Quantidade"]
-    fig = px.bar(freq, x=nome_amigavel(coluna), y="Quantidade", color=nome_amigavel(coluna))
-    fig.update_layout(title=titulo)
-    st.plotly_chart(preparar_figura(fig, altura), use_container_width=True, key=chave)
+        fig.update_layout(title=None); st.plotly_chart(preparar_figura(fig, altura), use_container_width=True, key=chave); return
+    categoria = data.columns[0]
+    freq = data[categoria].astype(str).value_counts().head(15).reset_index(); freq.columns = [nome_amigavel(categoria), "Quantidade"]
+    fig = px.bar(freq, x=nome_amigavel(categoria), y="Quantidade", color_discrete_sequence=["#4C805B"])
+    fig.update_layout(title=None); st.plotly_chart(preparar_figura(fig, altura), use_container_width=True, key=chave)
 
 def mostrar_metricas(df, prefixo):
     if df is None or df.empty:
-        st.info(f"Arquivo de métricas ({prefixo}) não encontrado ou vazio."); return
+        st.info(f"Resultados de métricas ({prefixo}) não encontrados no período."); return
     nums = df.select_dtypes(include="number").columns.tolist()
     if not nums:
-        st.dataframe(df, use_container_width=True, hide_index=True); return
+        st.info("O arquivo de métricas não contém valores numéricos que possam ser exibidos como indicadores."); return
     linha = df.iloc[0]
-    cols = st.columns(min(len(nums), 4))
-    for i, c in enumerate(nums[:4]):
-        val = pd.to_numeric(pd.Series([linha[c]]), errors="coerce").iloc[0]
-        with cols[i]: st.metric(nome_amigavel(c), f"{val:,.3f}" if pd.notna(val) else "—")
-    if len(df) > 1 or len(nums) > 4:
-        st.dataframe(df, use_container_width=True, hide_index=True)
+    # Compact, readable KPI tiles; no raw tables in the dashboard.
+    for inicio in range(0, len(nums), 4):
+        bloco = nums[inicio:inicio+4]
+        cols = st.columns(len(bloco))
+        for col, c in zip(cols, bloco):
+            val = pd.to_numeric(pd.Series([linha[c]]), errors="coerce").iloc[0]
+            with col:
+                st.metric(nome_amigavel(c), f"{val:,.3f}" if pd.notna(val) else "—")
 
 # ------------------------- DADOS BASE ---------------------------
 df_base = carregar_dados_principais()
@@ -630,39 +656,54 @@ elif pagina == "📊 Análise Exploratória":
     st.markdown('<div class="page-title">Análise Exploratória</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Estatísticas descritivas, padrões sazonais e variações mensais.</div>', unsafe_allow_html=True)
     tab1, tab2, tab3 = st.tabs(["Estatísticas", "Sazonalidade", "Variações"])
-    file_specs = [("07_estatisticas_descritivas_niveis.csv", "Resumo estatístico das variáveis"), ("07_sazonalidade_mensal.csv", "Padrão sazonal médio por mês"), ("07_estatisticas_variacoes_mensais.csv", "Comportamento das variações mensais")]
-    for tab, (file_name, description) in zip([tab1, tab2, tab3], file_specs):
-        with tab:
-            data = carregar_csv_flexivel(file_name)
-            filtered, _ = filtrar_periodo(data, start_date, end_date)
-            titulo_secao(description, f"Arquivo: {file_name}")
-            if not filtered.empty: st.dataframe(filtered, use_container_width=True, hide_index=True)
-            grafico(filtered, description, altura=400, chave=f"expl_{file_name}")
-
+    with tab1:
+        stats = carregar_csv_flexivel("07_estatisticas_descritivas_niveis.csv")
+        titulo_secao("Resumo estatístico", "Distribuição e medidas de resumo dos indicadores.")
+        grafico(stats, "Estatísticas descritivas", altura=410, chave="expl_stats")
+    with tab2:
+        titulo_secao("Padrão sazonal médio por mês", "Calculado diretamente a partir da série mensal de preços DERAL, agrupando todos os anos do período selecionado por mês do calendário.")
+        # Use the source series directly: the exported seasonal CSV has a schema
+        # that the generic chart loader may not interpret as month/value pairs.
+        if not df_deral.empty:
+            saz_deral = df_deral.copy()
+            saz_deral = saz_deral[(saz_deral["data"].dt.date >= start_date) & (saz_deral["data"].dt.date <= end_date)]
+            saz_deral = saz_deral.dropna(subset=["data", "preco_soja_pr"])
+            saz_deral["Mês numérico"] = saz_deral["data"].dt.month
+            perfil = saz_deral.groupby("Mês numérico", as_index=False)["preco_soja_pr"].mean().sort_values("Mês numérico")
+            meses_pt = {1:"Jan",2:"Fev",3:"Mar",4:"Abr",5:"Mai",6:"Jun",7:"Jul",8:"Ago",9:"Set",10:"Out",11:"Nov",12:"Dez"}
+            perfil["Mês"] = perfil["Mês numérico"].map(meses_pt)
+            fig_saz = px.bar(perfil, x="Mês", y="preco_soja_pr", text_auto=".2f", labels={"preco_soja_pr":"Preço médio (R$/saca)", "Mês":"Mês"})
+            fig_saz.update_traces(marker_color="#286247", textposition="outside", hovertemplate="%{x}<br>Preço médio: R$ %{y:,.2f}<extra></extra>")
+            fig_saz.update_layout(title=None, yaxis_tickprefix="R$ ")
+            st.plotly_chart(preparar_figura(fig_saz, 420), use_container_width=True, key="expl_seasonal_deral_fallback")
+        else:
+            st.warning("Sem série DERAL para calcular sazonalidade.")
+    with tab3:
+        vari = carregar_csv_flexivel("07_estatisticas_variacoes_mensais.csv")
+        titulo_secao("Variações mensais", "Comparação das mudanças mensais entre indicadores.")
+        grafico(vari, "Variações mensais", altura=420, chave="expl_variations")
 
 # ====================== CORRELAÇÕES/LAGS =======================
 elif pagina == "🔗 Correlações e Lags":
     st.markdown('<div class="page-title">Correlações e Defasagens</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-subtitle">Relações contemporâneas e defasadas entre indicadores, incluindo defasagens de 0 a 6 meses.</div>', unsafe_allow_html=True)
-    corr_files = [("08_correlacoes_niveis.csv", "Matriz de correlação entre os indicadores", "heatmap"), ("08_melhores_defasagens_spearman.csv", "Melhores defasagens — Spearman", "auto"), ("08_correlacoes_defasagens_0_6_meses.csv", "Correlações por defasagem de 0 a 6 meses", "auto")]
+    st.markdown('<div class="page-subtitle">Veja a força e direção das relações entre indicadores. Correlação não significa causalidade.</div>', unsafe_allow_html=True)
+    corr_files = [("08_correlacoes_niveis.csv", "Correlação entre indicadores", "heatmap"), ("08_melhores_defasagens_spearman.csv", "Melhores defasagens (Spearman)", "auto"), ("08_correlacoes_defasagens_0_6_meses.csv", "Correlação por defasagem (0 a 6 meses)", "auto")]
     for idx, (fname, heading, chart_type) in enumerate(corr_files):
         data = carregar_csv_flexivel(fname)
-        titulo_secao(heading, f"Resultado da análise: {fname}")
-        if not data.empty: st.dataframe(data, use_container_width=True, hide_index=True)
-        grafico(data, heading, altura=390, chave=f"corr_{idx}", tipo=chart_type)
+        titulo_secao(heading, "Valores positivos indicam movimentos na mesma direção; negativos, movimentos opostos. Quanto mais próximo de ±1, mais forte a associação.")
+        grafico(data, heading, altura=450, chave=f"corr_{idx}", tipo=chart_type)
         if idx < len(corr_files)-1: st.markdown("---")
 
 # ====================== SINAIS DE ATENÇÃO ======================
 elif pagina == "⚠️ Sinais de Atenção":
     st.markdown('<div class="page-title">Sinais de Atenção</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-subtitle">Monitoramento a partir das regras e indicadores calculados no projeto.</div>', unsafe_allow_html=True)
-    signal_files = [("10_resumo_sinais.csv", "Resumo dos sinais identificados"), ("10_regras_sinais_atencao.csv", "Critérios e regras de disparo"), ("10_sinais_atencao_mensais.csv", "Evolução mensal dos sinais")]
+    st.markdown('<div class="page-subtitle">Indicadores e regras que ajudam a acompanhar condições de mercado.</div>', unsafe_allow_html=True)
+    signal_files = [("10_resumo_sinais.csv", "Resumo dos sinais identificados"), ("10_regras_sinais_atencao.csv", "Regras de atenção"), ("10_sinais_atencao_mensais.csv", "Evolução mensal dos sinais")]
     for idx, (fname, heading) in enumerate(signal_files):
         data = carregar_csv_flexivel(fname)
         filtered, _ = filtrar_periodo(data, start_date, end_date)
-        titulo_secao(heading, f"Arquivo: {fname}")
-        if not filtered.empty: st.dataframe(filtered, use_container_width=True, hide_index=True)
-        grafico(filtered, heading, altura=370, chave=f"signals_{idx}")
+        titulo_secao(heading, "Visualização dos resultados calculados no projeto.")
+        grafico(filtered, heading, altura=390, chave=f"signals_{idx}")
         if idx < len(signal_files)-1: st.markdown("---")
 
 # =========================== RIDGE =============================
@@ -676,8 +717,7 @@ elif pagina == "🤖 Modelagem Ridge":
     mostrar_metricas(metrics, "modelo Ridge")
     st.markdown("---")
     titulo_secao("Coeficientes estimados pelo Ridge", "Valores dos coeficientes conforme o resultado calculado.")
-    if not coefficients.empty: st.dataframe(coefficients, use_container_width=True, hide_index=True)
-    grafico(coefficients, "Coeficientes do modelo Ridge", altura=380, chave="ridge_coefficients")
+    grafico(coefficients, "Coeficientes do modelo Ridge", altura=400, chave="ridge_coefficients")
     st.markdown("---")
     titulo_secao("Valores observados e estimados", "Comparação entre preço observado e séries de previsão no período de teste.")
     predictions_filtered, prediction_date = filtrar_periodo(predictions, start_date, end_date)
@@ -691,7 +731,6 @@ elif pagina == "🤖 Modelagem Ridge":
             figp.update_traces(line=dict(width=2.4)); figp.update_layout(title="Preço observado e previsões")
             st.plotly_chart(preparar_figura(figp, 420), use_container_width=True)
         else: grafico(predictions_filtered, "Séries de previsão", altura=400, chave="ridge_predictions")
-        st.dataframe(predictions_filtered, use_container_width=True, hide_index=True)
     else: st.info("Arquivo de previsões não encontrado ou sem registros no período selecionado.")
 
 # ---------------------------- FOOTER ----------------------------
