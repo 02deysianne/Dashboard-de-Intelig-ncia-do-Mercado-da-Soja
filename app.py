@@ -128,7 +128,24 @@ def carregar_csv_flexivel(nome):
         except Exception: pass
     return pd.DataFrame()
 
+st.write("### Diagnóstico dos arquivos")
 
+for nome in [
+    "deral_preco_soja_pr.csv",
+    "dados_consolidados_dashboard.csv"
+]:
+    caminho = localizar_arquivo(nome)
+
+    st.write(f"Arquivo: {nome}")
+    st.write(f"Caminho encontrado: {caminho}")
+
+    if caminho:
+        df_teste = carregar_csv_flexivel(nome)
+        st.write("Dimensões:", df_teste.shape)
+        st.write("Colunas:", df_teste.columns.tolist())
+        st.dataframe(df_teste.head())
+    else:
+        st.error("Arquivo não encontrado.")
 @st.cache_data(show_spinner=False)
 def carregar_dados_principais():
     for nome in ["dados_consolidados_dashboard.parquet", "dados_consolidados_dashboard.csv"]:
