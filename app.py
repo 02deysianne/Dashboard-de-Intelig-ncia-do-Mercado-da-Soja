@@ -53,6 +53,11 @@ div[data-testid="stMetric"] [data-testid="stMetricValue"] {color:#193F31;font-we
 .stTabs [data-baseweb="tab-list"] {gap:6px;}
 .stTabs [data-baseweb="tab"] {background:white;border:1px solid #E5EBE5;border-radius:8px 8px 0 0;padding:7px 12px;font-size:12px;}
 .stTabs [aria-selected="true"] {color:#245744 !important;border-bottom:3px solid #3E805B !important;}
+
+.insight-card {background:#FFFFFF;border:1px solid #E3EAE3;border-radius:13px;padding:15px 16px;margin-bottom:12px;box-shadow:0 3px 12px rgba(28,55,39,.035);}
+.insight-label {color:#7B8980;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;}
+.insight-number {color:#193F31;font-size:23px;font-weight:800;margin-top:7px;line-height:1.2;}
+.insight-description {color:#718078;font-size:11px;line-height:1.5;margin-top:6px;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -268,7 +273,7 @@ with st.sidebar:
     st.markdown('<div class="brand-sub">Inteligência e monitoramento<br>do mercado da soja</div>', unsafe_allow_html=True)
     st.markdown("---")
     st.markdown('<div class="side-caption"><b>NAVEGAÇÃO</b></div>', unsafe_allow_html=True)
-    pagina = st.radio("Seções", ["🏠 Visão Geral", "📊 Análise Exploratória", "🔗 Correlações e Lags", "⚠️ Sinais de Atenção", "🤖 Modelagem Ridge"], label_visibility="collapsed")
+    pagina = st.radio("Seções", [" Visão Geral", " Análise Exploratória", " Correlações e Lags", " Sinais de Atenção", " Modelagem Ridge"], label_visibility="collapsed")
     st.markdown("---")
     st.markdown('<div class="side-caption"><b>PERÍODO</b></div>', unsafe_allow_html=True)
     valid_dates = df_base[coluna_data].dropna() if coluna_data and not df_base.empty else pd.Series(dtype="datetime64[ns]")
@@ -291,73 +296,231 @@ else: deral_filtrado = pd.DataFrame()
 st.markdown('<div class="eyebrow">PAINEL DE INTELIGÊNCIA DO AGRONEGÓCIO</div>', unsafe_allow_html=True)
 
 # ============================ HOME =============================
-if pagina == "🏠 Visão Geral":
-    st.markdown('<div class="page-title">Visão Geral do Mercado</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-subtitle">Indicadores centrais e comportamento histórico do mercado da soja no Paraná.</div>', unsafe_allow_html=True)
-    st.markdown('<div class="hero"><div class="hero-kicker">AGRODATA PR · MONITORAMENTO</div><div class="hero-title">Acompanhe o mercado da soja por meio dos dados.</div><div class="hero-text">Explore a evolução dos indicadores, observe padrões e investigue relações entre fatores que influenciam o cenário do agronegócio.</div></div>', unsafe_allow_html=True)
-    total = len(df_base) if not df_base.empty else metadata.get("total_observacoes", 0)
-    n_ind = len(df_base.select_dtypes(include="number").columns) if not df_base.empty else len(metadata.get("variaveis_incluidas", []))
-    periodo_txt = f"{start_date:%d/%m/%Y} – {end_date:%d/%m/%Y}"
-    cards = [("REGISTROS", f"{total:,}".replace(",", ".")), ("PERÍODO", periodo_txt), ("INDICADORES", str(n_ind)), ("REGIÃO", "Paraná · DERAL")]
-    cols = st.columns(4)
-    for col, (label, value) in zip(cols, cards):
-        with col: st.markdown(f'<div class="kpi-card"><div class="kpi-label">{label}</div><div class="kpi-value">{value}</div><div class="kpi-note">Filtro aplicado ao painel</div></div>', unsafe_allow_html=True)
-    st.write("")
-    if not df_base.empty:
-        numeric_cols = df_base.select_dtypes(include="number").columns.tolist()
-        if numeric_cols:
-            options = {nome_amigavel(c): c for c in numeric_cols}
-            selected_label = st.selectbox("Indicador para acompanhar", list(options.keys()), key="overview_metric")
-            selected_col = options[selected_label]
-            x_axis = coluna_data if coluna_data else "Registro"
-            chart_data = df_base.copy()
-            if not coluna_data: chart_data[x_axis] = range(1, len(chart_data) + 1)
-            fig = px.line(chart_data, x=x_axis, y=selected_col, labels={selected_col:selected_label, x_axis:"Data" if coluna_data else "Registro"})
-            fig.update_traces(name=selected_label, line=dict(width=3))
-            fig.update_layout(title=f"Evolução: {selected_label}")
-            st.plotly_chart(preparar_figura(fig, 390), use_container_width=True)
-            titulo_secao("Comparação de indicadores", "Compare até quatro séries selecionadas. Escalas diferentes podem dificultar a leitura conjunta.")
-            defaults = [nome_amigavel(c) for c in numeric_cols[:min(4, len(numeric_cols))]]
-            picked = st.multiselect("Séries", list(options.keys()), default=defaults, max_selections=4, key="overview_compare")
-            if picked:
-                subset_cols = [options[x] for x in picked]
-                if coluna_data:
-                    plot_df = df_base[[coluna_data] + subset_cols].melt(
-                        id_vars=coluna_data,
-                        var_name="Indicador",
-                        value_name="Valor"
-                    )
-                    xname = coluna_data
-                else:
-                    temp_df = df_base[subset_cols].copy()
-                    temp_df.insert(0, "_linha", range(len(temp_df)))
-                    plot_df = temp_df.melt(
-                        id_vars="_linha",
-                        var_name="Indicador",
-                        value_name="Valor"
-                    )
-                    xname = "_linha"
+if pagina == " Visão Geral":
+    st.markdown('<div class="page-title">Painel de Inteligência do Mercado da Soja</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="page-subtitle">Paraná · DERAL · Análise histórica de janeiro de 2000 a dezembro de 2025</div>',
+        unsafe_allow_html=True
+    )
+    st.markdown(
+        '<div class="hero">'
+        '<div class="hero-kicker">AGRODATA PR · INTELIGÊNCIA DE MERCADO</div>'
+        '<div class="hero-title">Entenda os movimentos do mercado da soja.</div>'
+        '<div class="hero-text">Acompanhe o preço estadual, explore indicadores relacionados e consulte os principais resultados das análises históricas.</div>'
+        '</div>',
+        unsafe_allow_html=True
+    )
 
-                plot_df["Indicador"] = plot_df["Indicador"].map(nome_amigavel)
-                fig2 = px.line(plot_df, x=xname, y="Valor", color="Indicador", labels={xname:"Período" if coluna_data else "Registro", "Valor":"Valor"})
-                fig2.update_traces(line=dict(width=2.2)); fig2.update_layout(title="Evolução comparativa")
-                st.plotly_chart(preparar_figura(fig2, 370), use_container_width=True)
-        else: st.warning("A base principal não contém indicadores numéricos.")
-    else: st.warning("Base consolidada não encontrada. Confira os arquivos dentro da pasta resultados/.")
-    if not deral_filtrado.empty:
-        titulo_secao("Preço da soja no Paraná — DERAL", "Preço mensal nominal em R$/saca de 60 kg, com base no arquivo estadual disponibilizado para o projeto.")
-        fig_d = px.line(deral_filtrado, x="data", y="preco_soja_pr", markers=True, labels={"data":"Data", "preco_soja_pr":"Preço (R$/saca de 60 kg)"})
-        fig_d.update_traces(name="DERAL", line=dict(width=3)); fig_d.update_layout(title="Histórico mensal do preço estadual")
-        st.plotly_chart(preparar_figura(fig_d, 350), use_container_width=True)
-        saz = deral_filtrado.copy(); saz["Mês"] = saz["data"].dt.month
-        month_labels = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
-        saz_profile = saz.groupby("Mês", as_index=False)["preco_soja_pr"].mean()
-        saz_profile["Mês"] = saz_profile["Mês"].map(lambda m: month_labels[int(m)-1])
-        fig_s = px.line(saz_profile, x="Mês", y="preco_soja_pr", markers=True, labels={"Mês":"Mês", "preco_soja_pr":"Preço médio (R$/saca)"}, title="Perfil sazonal do preço médio")
-        st.plotly_chart(preparar_figura(fig_s, 310), use_container_width=True)
+    # Métricas calculadas a partir do preço DERAL disponível no período filtrado.
+    preco_df = deral_filtrado.sort_values("data").copy() if not deral_filtrado.empty else pd.DataFrame()
+    if not preco_df.empty:
+        preco_df["preco_soja_pr"] = pd.to_numeric(preco_df["preco_soja_pr"], errors="coerce")
+        preco_df = preco_df.dropna(subset=["preco_soja_pr"])
+    if not preco_df.empty:
+        ultimo = float(preco_df["preco_soja_pr"].iloc[-1])
+        media_periodo = float(preco_df["preco_soja_pr"].mean())
+        primeiro = float(preco_df["preco_soja_pr"].iloc[0])
+        variacao_periodo = ((ultimo / primeiro) - 1) * 100 if primeiro else float("nan")
+        ultima_data = preco_df["data"].iloc[-1].strftime("%m/%Y")
+        total_obs = len(preco_df)
+    else:
+        ultimo = media_periodo = variacao_periodo = float("nan")
+        ultima_data = "Sem dados"
+        total_obs = 0
+
+    def formatar_brl(valor):
+        if pd.isna(valor):
+            return "—"
+        return "R$ " + f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+    def formatar_pct(valor):
+        if pd.isna(valor):
+            return "—"
+        return f"{valor:+.1f}%".replace(".", ",")
+
+    kpis = [
+        ("ÚLTIMO PREÇO", formatar_brl(ultimo), f"DERAL · {ultima_data}"),
+        ("PREÇO MÉDIO", formatar_brl(media_periodo), "Média no período selecionado"),
+        ("VARIAÇÃO DO PERÍODO", formatar_pct(variacao_periodo), "Primeiro ao último registro"),
+        ("OBSERVAÇÕES", f"{total_obs:,}".replace(",", "."), "Registros mensais disponíveis"),
+    ]
+    cols = st.columns(4)
+    for col, (label, value, note) in zip(cols, kpis):
+        with col:
+            st.markdown(
+                f'<div class="kpi-card"><div class="kpi-label">{label}</div>'
+                f'<div class="kpi-value">{value}</div><div class="kpi-note">{note}</div></div>',
+                unsafe_allow_html=True
+            )
+
+    st.write("")
+    if preco_df.empty:
+        st.warning("Não foram encontrados dados de preço do DERAL para o período selecionado. Confira o arquivo deral_preco_soja_pr.csv.")
+    else:
+        left, right = st.columns([1.8, 1])
+        with left:
+            titulo_secao("Evolução do preço da soja no Paraná", "Preço nominal mensal em reais por saca de 60 kg.")
+            fig_preco = px.area(
+                preco_df, x="data", y="preco_soja_pr",
+                labels={"data": "Mês", "preco_soja_pr": "Preço (R$/saca de 60 kg)"}
+            )
+            fig_preco.update_traces(
+                line=dict(color="#286247", width=2.8),
+                fillcolor="rgba(62,128,91,0.13)",
+                hovertemplate="%{x|%b/%Y}<br>R$ %{y:,.2f}<extra></extra>"
+            )
+            fig_preco.update_layout(
+                title=None,
+                yaxis_tickprefix="R$ ",
+                xaxis_rangeslider_visible=True
+            )
+            st.plotly_chart(preparar_figura(fig_preco, 420), use_container_width=True)
+
+        with right:
+            titulo_secao("Leitura rápida", "Resumo calculado para o intervalo selecionado.")
+            st.markdown(
+                f'<div class="insight-card"><div class="insight-label">Preço mais recente</div>'
+                f'<div class="insight-number">{formatar_brl(ultimo)}</div>'
+                f'<div class="insight-description">Último valor disponível na série estadual.</div></div>',
+                unsafe_allow_html=True
+            )
+            if pd.notna(variacao_periodo):
+                direcao = "aumento" if variacao_periodo > 0 else ("redução" if variacao_periodo < 0 else "estabilidade")
+                texto_var = f"No intervalo selecionado, o preço apresentou {direcao} de {abs(variacao_periodo):.1f}%.".replace(".", ",")
+            else:
+                texto_var = "Não há dados suficientes para calcular a variação do período."
+            st.markdown(
+                f'<div class="note-box">{texto_var} Essa comparação considera o primeiro e o último registro disponíveis e não representa uma previsão.</div>',
+                unsafe_allow_html=True
+            )
+            st.write("")
+            st.markdown(
+                '<div class="insight-card"><div class="insight-label">Escopo da análise</div>'
+                '<div class="insight-number">2000–2025</div>'
+                '<div class="insight-description">Série histórica mensal utilizada no estudo.</div></div>',
+                unsafe_allow_html=True
+            )
+
+        # Comportamento sazonal e variações recentes.
+        st.markdown("---")
+        col_saz, col_var = st.columns(2)
+        with col_saz:
+            titulo_secao("Comportamento sazonal", "Preço médio histórico por mês do ano, dentro do período selecionado.")
+            saz = preco_df.copy()
+            saz["numero_mes"] = saz["data"].dt.month
+            meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
+            perfil = saz.groupby("numero_mes", as_index=False)["preco_soja_pr"].mean()
+            perfil["Mês"] = perfil["numero_mes"].map(lambda m: meses[int(m) - 1])
+            fig_saz = px.bar(
+                perfil, x="Mês", y="preco_soja_pr",
+                labels={"preco_soja_pr": "Preço médio (R$/saca)", "Mês": "Mês"}
+            )
+            fig_saz.update_traces(marker_color="#5B8967", hovertemplate="%{x}<br>R$ %{y:,.2f}<extra></extra>")
+            fig_saz.update_layout(title=None, yaxis_tickprefix="R$ ")
+            st.plotly_chart(preparar_figura(fig_saz, 320), use_container_width=True)
+
+        with col_var:
+            titulo_secao("Variação mensal do preço", "Percentual de mudança em relação ao mês anterior.")
+            variacoes = preco_df[["data", "preco_soja_pr"]].copy()
+            variacoes["variacao_mensal"] = variacoes["preco_soja_pr"].pct_change() * 100
+            variacoes = variacoes.dropna(subset=["variacao_mensal"]).tail(36)
+            if not variacoes.empty:
+                variacoes["Direção"] = variacoes["variacao_mensal"].apply(
+                    lambda x: "Alta" if x >= 0 else "Queda"
+                )
+                fig_var = px.bar(
+                    variacoes, x="data", y="variacao_mensal", color="Direção",
+                    color_discrete_map={"Alta": "#4C805B", "Queda": "#C47762"},
+                    labels={"data": "Mês", "variacao_mensal": "Variação (%)"}
+                )
+                fig_var.update_layout(title=None, legend_title_text="")
+                fig_var.add_hline(y=0, line_color="#718078", line_width=1)
+                st.plotly_chart(preparar_figura(fig_var, 320), use_container_width=True)
+            else:
+                st.info("Não há observações suficientes para calcular as variações mensais.")
+
+    # Indicadores de mercado apresentados em índice-base 100 para evitar comparar unidades diferentes.
+    st.markdown("---")
+    titulo_secao(
+        "Indicadores relacionados ao mercado",
+        "Séries reescalonadas para base 100 no primeiro mês disponível. O índice permite comparar movimentos, não os valores absolutos."
+    )
+    if not df_base.empty and coluna_data:
+        candidatos = {
+            "Preço internacional da soja": ["soja_internacional_usd_t", "soja_internacional_usd"],
+            "Câmbio": ["cambio_brl_usd", "cambio_usd_brl", "cambio", "dolar"],
+            "Petróleo Brent": ["brent", "petroleo", "petróleo"],
+            "Fertilizantes": ["fertilizantes", "indice_fertilizantes", "índice_fertilizantes"],
+        }
+        colunas_indice = []
+        nomes_indice = {}
+        colunas_existentes = {str(c).lower(): c for c in df_base.columns}
+        for nome, aliases in candidatos.items():
+            achou = next((colunas_existentes[a.lower()] for a in aliases if a.lower() in colunas_existentes), None)
+            if achou and pd.api.types.is_numeric_dtype(df_base[achou]):
+                colunas_indice.append(achou)
+                nomes_indice[achou] = nome
+        if colunas_indice:
+            base_ind = df_base[[coluna_data] + colunas_indice].copy().sort_values(coluna_data)
+            linhas = []
+            for coluna in colunas_indice:
+                serie = pd.to_numeric(base_ind[coluna], errors="coerce")
+                validos = serie.dropna()
+                if len(validos) >= 2 and validos.iloc[0] != 0:
+                    base_ind[nomes_indice[coluna]] = (serie / validos.iloc[0]) * 100
+                    linhas.append(nomes_indice[coluna])
+            if linhas:
+                longo_ind = base_ind[[coluna_data] + linhas].melt(
+                    id_vars=coluna_data, var_name="Indicador", value_name="Índice (base 100)"
+                ).dropna()
+                fig_ind = px.line(
+                    longo_ind, x=coluna_data, y="Índice (base 100)", color="Indicador",
+                    labels={coluna_data: "Período", "Índice (base 100)": "Índice (base 100)"}
+                )
+                fig_ind.update_traces(line=dict(width=2.3))
+                fig_ind.add_hline(y=100, line_dash="dot", line_color="#9AA69D")
+                st.plotly_chart(preparar_figura(fig_ind, 350), use_container_width=True)
+            else:
+                st.info("Os indicadores disponíveis não possuem valores suficientes para formar índices comparáveis.")
+        else:
+            st.info("Não foram identificadas, na base carregada, colunas numéricas dos indicadores de mercado esperados.")
+    else:
+        st.info("A base consolidada com indicadores não está disponível para montar a comparação.")
+
+    # Destaques fixos dos resultados do estudo completo (não variam com o filtro visual).
+    st.markdown("---")
+    titulo_secao("Principais achados do estudo", "Resultados estatísticos calculados para a série histórica completa de 2000 a 2025.")
+    achado1, achado2, achado3 = st.columns(3)
+    with achado1:
+        st.markdown(
+            '<div class="insight-card"><div class="insight-label">Preço internacional da soja</div>'
+            '<div class="insight-number">ρ = 0,49</div>'
+            '<div class="insight-description">Associação positiva com a variação do preço estadual, identificada na análise contemporânea.</div></div>',
+            unsafe_allow_html=True
+        )
+    with achado2:
+        st.markdown(
+            '<div class="insight-card"><div class="insight-label">Câmbio USD/BRL</div>'
+            '<div class="insight-number">ρ = 0,32</div>'
+            '<div class="insight-description">Associação positiva com a variação do preço estadual, também na defasagem zero.</div></div>',
+            unsafe_allow_html=True
+        )
+    with achado3:
+        st.markdown(
+            '<div class="insight-card"><div class="insight-label">Interpretação</div>'
+            '<div class="insight-number">Exploratória</div>'
+            '<div class="insight-description">Correlação não indica causalidade. Os resultados apoiam a análise, não garantem movimentos futuros.</div></div>',
+            unsafe_allow_html=True
+        )
+
+    st.markdown(
+        '<div class="footer-line">Painel acadêmico desenvolvido para análise histórica do mercado da soja no Paraná · '
+        'Dados e resultados do projeto · Atualização conforme os arquivos tratados</div>',
+        unsafe_allow_html=True
+    )
 
 # ====================== EXPLORATÓRIA ===========================
-elif pagina == "📊 Análise Exploratória":
+elif pagina == " Análise Exploratória":
     st.markdown('<div class="page-title">Análise Exploratória</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Estatísticas descritivas, padrões sazonais e variações mensais.</div>', unsafe_allow_html=True)
     tab1, tab2, tab3 = st.tabs(["Estatísticas", "Sazonalidade", "Variações"])
@@ -372,7 +535,7 @@ elif pagina == "📊 Análise Exploratória":
 
 
 # ====================== CORRELAÇÕES/LAGS =======================
-elif pagina == "🔗 Correlações e Lags":
+elif pagina == " Correlações e Lags":
     st.markdown('<div class="page-title">Correlações e Defasagens</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Relações contemporâneas e defasadas entre indicadores, incluindo defasagens de 0 a 6 meses.</div>', unsafe_allow_html=True)
     corr_files = [("08_correlacoes_niveis.csv", "Matriz de correlação entre os indicadores", "heatmap"), ("08_melhores_defasagens_spearman.csv", "Melhores defasagens — Spearman", "auto"), ("08_correlacoes_defasagens_0_6_meses.csv", "Correlações por defasagem de 0 a 6 meses", "auto")]
@@ -384,7 +547,7 @@ elif pagina == "🔗 Correlações e Lags":
         if idx < len(corr_files)-1: st.markdown("---")
 
 # ====================== SINAIS DE ATENÇÃO ======================
-elif pagina == "⚠️ Sinais de Atenção":
+elif pagina == " Sinais de Atenção":
     st.markdown('<div class="page-title">Sinais de Atenção</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Monitoramento a partir das regras e indicadores calculados no projeto.</div>', unsafe_allow_html=True)
     signal_files = [("10_resumo_sinais.csv", "Resumo dos sinais identificados"), ("10_regras_sinais_atencao.csv", "Critérios e regras de disparo"), ("10_sinais_atencao_mensais.csv", "Evolução mensal dos sinais")]
@@ -397,7 +560,7 @@ elif pagina == "⚠️ Sinais de Atenção":
         if idx < len(signal_files)-1: st.markdown("---")
 
 # =========================== RIDGE =============================
-elif pagina == "🤖 Modelagem Ridge":
+elif pagina == " Modelagem Ridge":
     st.markdown('<div class="page-title">Modelagem Ridge</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Métricas, coeficientes estimados e comparação de previsões no conjunto de teste.</div>', unsafe_allow_html=True)
     metrics = carregar_csv_flexivel("10_metricas_modelagem.csv")
