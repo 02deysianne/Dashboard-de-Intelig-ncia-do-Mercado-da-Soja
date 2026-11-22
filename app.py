@@ -197,10 +197,19 @@ def carregar_deral():
     if df.empty:
         return pd.DataFrame(columns=["data", "preco_soja_pr"])
 
-    # Converte datas sem assumir que o arquivo esteja em um único formato.
-    df["data"] = pd.to_datetime(
-        df["data"].astype(str).str.strip(), errors="coerce", dayfirst=True
+    # Corrige a leitura das datas: datas ISO (AAAA-MM-DD) devem ser lidas
+    # sem dayfirst=True, que deslocava meses para janeiro. Formatos brasileiros
+    # (DD/MM/AAAA) continuam sendo lidos com dayfirst=True.
+    datas_texto = df["data"].astype(str).str.strip()
+    mascara_iso = datas_texto.str.match(r"^\d{4}-\d{2}-\d{2}", na=False)
+    datas_convertidas = pd.Series(pd.NaT, index=df.index, dtype="datetime64[ns]")
+    datas_convertidas.loc[mascara_iso] = pd.to_datetime(
+        datas_texto.loc[mascara_iso], errors="coerce", yearfirst=True
     )
+    datas_convertidas.loc[~mascara_iso] = pd.to_datetime(
+        datas_texto.loc[~mascara_iso], errors="coerce", dayfirst=True
+    )
+    df["data"] = datas_convertidas
 
     # Aceita números no formato 1234.56 ou brasileiro 1.234,56.
     preco = df["preco_soja_pr"].astype(str).str.strip()
@@ -490,6 +499,9 @@ if pagina == "🏠 Visão Geral":
         with col_var:
             titulo_secao("Variação mensal do preço", "Percentual de mudança em relação ao mês anterior.")
             variacoes = preco_df[["data", "preco_soja_pr"]].copy()
+            variacoes["data"] = pd.to_datetime(variacoes["data"], errors="coerce")
+            variacoes["preco_soja_pr"] = pd.to_numeric(variacoes["preco_soja_pr"], errors="coerce")
+            variacoes = variacoes.dropna(subset=["data", "preco_soja_pr"]).sort_values("data").reset_index(drop=True)
             variacoes["variacao_mensal"] = variacoes["preco_soja_pr"].pct_change() * 100
             variacoes = variacoes.dropna(subset=["variacao_mensal"]).tail(36)
             if not variacoes.empty:
