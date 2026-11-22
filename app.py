@@ -120,32 +120,34 @@ def localizar_arquivo(nome):
 @st.cache_data(show_spinner=False)
 def carregar_csv_flexivel(nome):
     path = localizar_arquivo(nome)
-    if not path: return pd.DataFrame()
+
+    if not path:
+        return pd.DataFrame()
+
     for sep in [None, ",", ";", "\t"]:
         try:
-            df = pd.read_csv(path, sep=sep, engine="python")
-            if df.shape[1] > 1 or sep is not None: return df
-        except Exception: pass
+            df = pd.read_csv(
+                path,
+                sep=sep,
+                engine="python",
+                encoding="utf-8-sig"
+            )
+
+            if df.shape[1] > 1 or sep is not None:
+                # Remove BOM e espaços dos nomes das colunas
+                df.columns = (
+                    df.columns
+                    .str.replace("\ufeff", "", regex=False)
+                    .str.strip()
+                )
+
+                return df
+
+        except Exception:
+            pass
+
     return pd.DataFrame()
 
-st.write("### Diagnóstico dos arquivos")
-
-for nome in [
-    "deral_preco_soja_pr.csv",
-    "dados_consolidados_dashboard.csv"
-]:
-    caminho = localizar_arquivo(nome)
-
-    st.write(f"Arquivo: {nome}")
-    st.write(f"Caminho encontrado: {caminho}")
-
-    if caminho:
-        df_teste = carregar_csv_flexivel(nome)
-        st.write("Dimensões:", df_teste.shape)
-        st.write("Colunas:", df_teste.columns.tolist())
-        st.dataframe(df_teste.head())
-    else:
-        st.error("Arquivo não encontrado.")
 @st.cache_data(show_spinner=False)
 def carregar_dados_principais():
     for nome in ["dados_consolidados_dashboard.parquet", "dados_consolidados_dashboard.csv"]:
