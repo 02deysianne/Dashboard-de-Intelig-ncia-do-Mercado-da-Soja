@@ -27,8 +27,8 @@ st.markdown("""<style>body, [class*="css"] {font-family: 'DM Sans', sans-serif;}
 [data-testid="stHeader"] {background:rgba(245,247,244,.94);}
 #MainMenu, footer {visibility:hidden;}
 section[data-testid="stSidebar"] {background:#173D32;}
-section[data-testid="stSidebar"] * {color:#FFFFFF !important;}
-section[data-testid="stSidebar"] [data-testid="stRadio"] label {color:#203128 !important;}
+section[data-testid="stSidebar"] * {color:#203128 !important;}
+section[data-testid="stSidebar"] [data-testid="stRadio"] label {color:#FFFFFF !important;}
 section[data-testid="stSidebar"] [data-testid="stDateInput"] label {color:#203128 !important;}
 section[data-testid="stSidebar"] [data-testid="stDateInput"] input {color:#203128 !important; background:#FFFFFF !important; -webkit-text-fill-color:#203128 !important;}
 .brand {font-size:25px;font-weight:800;letter-spacing:-.8px;color:white;}
