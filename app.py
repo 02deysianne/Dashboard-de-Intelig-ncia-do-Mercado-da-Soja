@@ -29,9 +29,9 @@ st.markdown("""<style>body, [class*="css"] {font-family: 'DM Sans', sans-serif;}
 section[data-testid="stSidebar"] {background:#173D32;}
 section[data-testid="stSidebar"] * {color:#203128 !important;}
 section[data-testid="stSidebar"] [data-testid="stRadio"] label {color:#FFFFFF !important;}
-section[data-testid="stSidebar"] [data-testid="stDateInput"] label {color:#203128 !important;}
-section[data-testid="stSidebar"] [data-testid="stDateInput"] input {color:#203128 !important; background:#FFFFFF !important; -webkit-text-fill-color:#203128 !important;}
-.brand {font-size:25px;font-weight:800;letter-spacing:-.8px;color:white;}
+section[data-testid="stSidebar"] {background: #173D32;}
+section[data-testid="stSidebar"] * {color: #000000 !important;} 
+section[data-testid="stSidebar"] [data-testid="stDateInput"] input {color: #203128 !important; background: white !important; -webkit-text-fill-color: #203128 !important;}.brand {font-size:25px;font-weight:800;letter-spacing:-.8px;color:white;}
 .brand-sub,.side-caption {color:#C8D9CD !important;font-size:11px;line-height:1.5;}
 .eyebrow {color:#47745A;text-transform:uppercase;font-weight:800;letter-spacing:1.5px;font-size:10px;margin-bottom:6px;}
 .page-title {font-weight:800;color:#183C30;letter-spacing:-.7px;font-size:30px;margin:0;}
