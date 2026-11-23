@@ -27,10 +27,10 @@ st.markdown("""<style>body, [class*="css"] {font-family: 'DM Sans', sans-serif;}
 [data-testid="stHeader"] {background:rgba(245,247,244,.94);}
 #MainMenu, footer {visibility:hidden;}
 section[data-testid="stSidebar"] {background:#173D32;}
-section[data-testid="stSidebar"] * {color:#000000 !important;}
-section[data-testid="stSidebar"] [data-testid="stDateInput"] input {
- color:#203128 !important; background:white !important; -webkit-text-fill-color:#203128 !important;
-}
+section[data-testid="stSidebar"] * {color:#F4F7F3 !important;}
+section[data-testid="stSidebar"] [data-testid="stRadio"] label {color:#F4F7F3 !important;}
+section[data-testid="stSidebar"] [data-testid="stDateInput"] label {color:#F4F7F3 !important;}
+section[data-testid="stSidebar"] [data-testid="stDateInput"] input {color:#203128 !important; background:#FFFFFF !important; -webkit-text-fill-color:#203128 !important;}
 .brand {font-size:25px;font-weight:800;letter-spacing:-.8px;color:white;}
 .brand-sub,.side-caption {color:#C8D9CD !important;font-size:11px;line-height:1.5;}
 .eyebrow {color:#47745A;text-transform:uppercase;font-weight:800;letter-spacing:1.5px;font-size:10px;margin-bottom:6px;}
@@ -363,7 +363,7 @@ if not df_deral.empty:
         base_norm, base_date = normalizar_data(df_base)
         if base_date and base_date != "data": base_norm = base_norm.rename(columns={base_date:"data"})
         if "data" in base_norm.columns:
-            base_norm["data"] = pd.to_datetime(base_norm["data"], errors="coerce", dayfirst=True)
+            base_norm["data"] = pd.to_datetime(base_norm["data"], errors="coerce")
             base_norm = base_norm.drop(columns=["preco_soja_pr"], errors="ignore").merge(df_deral, on="data", how="outer")
             df_base = base_norm
         else: df_base = df_deral.copy()
@@ -398,6 +398,7 @@ with st.sidebar:
         start_date, end_date = date_range[0], date_max
     else:
         start_date, end_date = date_min, date_max
+    st.caption(f"Período selecionado: {start_date.strftime('%d/%m/%Y')} a {end_date.strftime('%d/%m/%Y')}")
     st.markdown("---")
     st.markdown('<div class="side-caption"><b>ESTÁGIO SUPERVISIONADO</b><br>Deysianne Souza<br>Orientador: Prof. Diego B. Santi<br>UNICENTRO · 2026</div>', unsafe_allow_html=True)
 
@@ -560,7 +561,7 @@ if pagina == "🏠 Visão Geral":
     st.markdown("---")
     titulo_secao(
         "Indicadores relacionados ao mercado",
-        "Séries reescalonadas para base 100 no primeiro mês disponível. O índice permite comparar movimentos, não os valores absolutos."
+        "Séries reescalonadas para base 100 no primeiro mês disponível. O índice permite comparar movimentos, não valores absolutos. A base consolidada disponível para esses indicadores começa em dez/2000."
     )
     # Carrega a base consolidada separadamente da série DERAL para garantir
     # que a junção do preço estadual não interfira na identificação dos indicadores.
@@ -576,6 +577,9 @@ if pagina == "🏠 Visão Geral":
             (base_ind_raw[data_ind].dt.date >= start_date) &
             (base_ind_raw[data_ind].dt.date <= end_date)
         ].sort_values(data_ind)
+
+        if not base_ind_raw.empty:
+            st.caption(f"Disponibilidade da base consolidada de indicadores no intervalo: {base_ind_raw[data_ind].min():%m/%Y} a {base_ind_raw[data_ind].max():%m/%Y} ({len(base_ind_raw)} registros). A série DERAL é apresentada separadamente e possui cobertura histórica própria.")
 
         candidatos = {
             "Preço internacional da soja": ["soja_internacional_usd_t", "soja_internacional_usd"],
@@ -666,6 +670,7 @@ if pagina == "🏠 Visão Geral":
 elif pagina == "📊 Análise Exploratória":
     st.markdown('<div class="page-title">Análise Exploratória</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Estatísticas descritivas, padrões sazonais e variações mensais.</div>', unsafe_allow_html=True)
+    st.info("As tabelas desta seção são resultados pré-calculados para a série completa do estudo (jan/2000 a dez/2025). O filtro de período não recalcula essas estatísticas; ele é aplicado aos gráficos temporais da Visão Geral e às séries mensais de sinais e previsões.")
     tab1, tab2, tab3 = st.tabs(["Estatísticas", "Sazonalidade", "Variações"])
     with tab1:
         stats = carregar_csv_flexivel("07_estatisticas_descritivas_niveis.csv")
@@ -728,10 +733,11 @@ elif pagina == "📊 Análise Exploratória":
 elif pagina == "🔗 Correlações e Lags":
     st.markdown('<div class="page-title">Correlações e Defasagens</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Direção e intensidade das relações estatísticas. Correlação não significa causalidade.</div>', unsafe_allow_html=True)
-    tabs_corr = st.tabs(["Matriz de correlação", "Melhores defasagens", "Lags 0–6 meses"])
+    st.info("As correlações e defasagens são tabelas pré-calculadas para a série completa do estudo. O filtro de período não recalcula os coeficientes.")
+    tabs_corr = st.tabs(["Correlação contemporânea", "Variações mensais", "Melhores defasagens", "Lags 0–6 meses"])
     with tabs_corr[0]:
         data = carregar_csv_flexivel("08_correlacoes_niveis.csv")
-        titulo_secao("Correlação entre indicadores e preço da soja", "As barras mostram Pearson e Spearman em relação ao preço estadual. Os valores são coeficientes, não percentuais.")
+        titulo_secao("Correlação contemporânea entre níveis", "As barras comparam Pearson e Spearman entre os níveis dos indicadores e o preço estadual. Séries em nível podem compartilhar tendências; interprete também as correlações das variações mensais.")
         if not data.empty and {"variavel_explicativa","pearson_r","spearman_rho"}.issubset(data.columns):
             cdata=data.copy()
             cdata["pearson_r"]=pd.to_numeric(cdata["pearson_r"],errors="coerce")
@@ -747,6 +753,25 @@ elif pagina == "🔗 Correlações e Lags":
             st.plotly_chart(preparar_figura(fig,460),use_container_width=True,key="correlations_levels_bars")
         else: st.info("Arquivo de correlação entre níveis ausente ou com estrutura inesperada.")
     with tabs_corr[1]:
+        data_var = carregar_csv_flexivel("08_correlacoes_variacoes_mensais.csv")
+        titulo_secao("Correlação entre variações mensais", "Compara as mudanças mensais dos indicadores com a variação do preço estadual. Resultados calculados para o período completo do estudo.")
+        if not data_var.empty and {"variavel_explicativa", "pearson_r", "spearman_rho"}.issubset(data_var.columns):
+            plot_var = data_var.copy()
+            for c in ["pearson_r", "spearman_rho"]:
+                plot_var[c] = pd.to_numeric(plot_var[c], errors="coerce")
+            plot_var = plot_var.dropna(subset=["pearson_r", "spearman_rho"])
+            plot_var["Indicador"] = plot_var["variavel_explicativa"].map(nome_amigavel)
+            long_var = plot_var.melt(id_vars="Indicador", value_vars=["pearson_r", "spearman_rho"], var_name="Método", value_name="Correlação")
+            long_var["Método"] = long_var["Método"].map({"pearson_r": "Pearson", "spearman_rho": "Spearman"})
+            fig_var = px.bar(long_var, x="Correlação", y="Indicador", color="Método", barmode="group", orientation="h", range_x=[-1, 1], color_discrete_sequence=["#79A88B", "#24563B"])
+            fig_var.add_vline(x=0, line_color="#111", line_dash="dash")
+            fig_var.update_layout(title=None, legend_title=None, margin=dict(l=15, r=35, t=20, b=30))
+            st.plotly_chart(preparar_figura(fig_var, 440), use_container_width=True, key="correlations_monthly_changes")
+            st.caption("Os coeficientes representam associação entre variações mensais; não demonstram causalidade.")
+        else:
+            st.info("Arquivo de correlações das variações mensais ausente ou com estrutura inesperada.")
+
+    with tabs_corr[2]:
         best = carregar_csv_flexivel("08_melhores_defasagens_spearman.csv")
         titulo_secao("Melhor lag por indicador", "Mostra a correlação Spearman selecionada e a defasagem correspondente. A linha zero ajuda a separar relações positivas e negativas.")
         if not best.empty and {"variavel_explicativa","spearman_rho","defasagem_meses"}.issubset(best.columns):
@@ -760,7 +785,7 @@ elif pagina == "🔗 Correlações e Lags":
             fig.update_layout(title=None,coloraxis_showscale=False,margin=dict(l=20,r=125,t=20,b=35))
             st.plotly_chart(preparar_figura(fig,max(430,42*len(best))),use_container_width=True,key="corr_best_lag_chart")
         else: st.info("O arquivo de melhores defasagens não contém as colunas esperadas.")
-    with tabs_corr[2]:
+    with tabs_corr[3]:
         lag = carregar_csv_flexivel("08_correlacoes_defasagens_0_6_meses.csv")
         titulo_secao("Correlação por defasagem (0 a 6 meses)", "Heatmap com os valores reais de correlação. Selecione o tipo de correlação para comparar os indicadores ao longo dos lags.")
         if not lag.empty and {"variavel_explicativa","defasagem_meses"}.issubset(lag.columns):
@@ -778,14 +803,50 @@ elif pagina == "🔗 Correlações e Lags":
 # ====================== SINAIS DE ATENÇÃO ======================
 elif pagina == "⚠️ Sinais de Atenção":
     st.markdown('<div class="page-title">Sinais de Atenção</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-subtitle">Indicadores e regras que ajudam a acompanhar condições de mercado.</div>', unsafe_allow_html=True)
-    signal_files = [("10_resumo_sinais.csv", "Resumo dos sinais identificados"), ("10_regras_sinais_atencao.csv", "Regras de atenção"), ("10_sinais_atencao_mensais.csv", "Evolução mensal dos sinais")]
-    for idx, (fname, heading) in enumerate(signal_files):
-        data = carregar_csv_flexivel(fname)
-        filtered, _ = filtrar_periodo(data, start_date, end_date)
-        titulo_secao(heading, "Visualização dos resultados calculados no projeto.")
-        grafico(filtered, heading, altura=390, chave=f"signals_{idx}")
-        if idx < len(signal_files)-1: st.markdown("---")
+    st.markdown('<div class="page-subtitle">Indicadores exploratórios para acompanhar condições de mercado — não constituem recomendação comercial.</div>', unsafe_allow_html=True)
+
+    resumo = carregar_csv_flexivel("10_resumo_sinais.csv")
+    if not resumo.empty:
+        r = resumo.iloc[0]
+        st.caption(f"Validação original: {r.get('periodo_teste_inicio', '—')} a {r.get('periodo_teste_fim', '—')} · {int(pd.to_numeric(r.get('meses_teste', 0), errors='coerce') or 0)} meses. O resumo refere-se ao teste completo.")
+        kpi_specs = [("Sinais identificados", "quantidade_sinais", "{:.0f}"), ("Meses sem sinal", "meses_sem_sinal", "{:.0f}"), ("Cobertura do teste", "cobertura_pct", "{:.1f}%"), ("Acerto entre os sinais", "taxa_acerto_sinais_pct", "{:.1f}%")]
+        cols = st.columns(4)
+        for col, (label, key, fmt) in zip(cols, kpi_specs):
+            val = pd.to_numeric(pd.Series([r.get(key)]), errors="coerce").iloc[0]
+            with col:
+                st.metric(label, "—" if pd.isna(val) else fmt.format(val))
+        st.caption(f"Dos {int(r.get('quantidade_sinais', 0))} sinais emitidos, {int(r.get('numero_acertos', 0))} coincidiram com a direção observada. Foram {int(r.get('sinais_alta', 0))} sinais de alta e {int(r.get('sinais_baixa', 0))} de baixa.")
+    else:
+        st.warning("O resumo dos sinais não foi encontrado.")
+
+    st.markdown("---")
+    regras = carregar_csv_flexivel("10_regras_sinais_atencao.csv")
+    titulo_secao("Regras utilizadas", "Indicadores, defasagens e limites de referência estimados no conjunto de treinamento.")
+    if not regras.empty:
+        regras_exibir = regras.rename(columns={"indicador":"Indicador", "lag_meses":"Defasagem (meses)", "rho_spearman_treino":"Spearman no treino", "p_fdr_bh":"p-valor ajustado (FDR)", "sentido_relacao":"Sentido da relação", "q25_treino":"Limite inferior (Q25)", "q75_treino":"Limite superior (Q75)", "voto_acima_q75":"Voto acima do Q75", "voto_abaixo_q25":"Voto abaixo do Q25"}).copy()
+        if "Indicador" in regras_exibir:
+            regras_exibir["Indicador"] = regras_exibir["Indicador"].map(nome_amigavel)
+        colunas = [c for c in ["Indicador", "Defasagem (meses)", "Spearman no treino", "p-valor ajustado (FDR)", "Sentido da relação", "Limite inferior (Q25)", "Limite superior (Q75)", "Voto acima do Q75", "Voto abaixo do Q25"] if c in regras_exibir.columns]
+        st.dataframe(regras_exibir[colunas], use_container_width=True, hide_index=True)
+    else:
+        st.info("Arquivo de regras não encontrado.")
+
+    st.markdown("---")
+    sinais = carregar_csv_flexivel("10_sinais_atencao_mensais.csv")
+    titulo_secao("Evolução mensal dos sinais", "A série abaixo respeita o período selecionado na barra lateral.")
+    sinais_filtrados, col_data_sinais = filtrar_periodo(sinais, start_date, end_date)
+    if not sinais_filtrados.empty and col_data_sinais:
+        if "pontuacao" in sinais_filtrados.columns:
+            sinais_filtrados["pontuacao"] = pd.to_numeric(sinais_filtrados["pontuacao"], errors="coerce")
+            fig_sinais = px.bar(sinais_filtrados, x=col_data_sinais, y="pontuacao", color="sinal", color_discrete_map={"alta":"#4C805B", "baixa":"#C47762", "sem sinal":"#AAB4AC"}, labels={col_data_sinais:"Mês", "pontuacao":"Pontuação", "sinal":"Classificação"})
+            fig_sinais.add_hline(y=0, line_color="#333", line_dash="dash")
+            fig_sinais.update_layout(title=None, legend_title=None)
+            st.plotly_chart(preparar_figura(fig_sinais, 390), use_container_width=True, key="signals_monthly_timeline")
+        cols_detail = [c for c in [col_data_sinais, "sinal", "pontuacao", "direcao_real", "acerto_sinal"] if c in sinais_filtrados.columns]
+        st.dataframe(sinais_filtrados[cols_detail], use_container_width=True, hide_index=True)
+    else:
+        st.info("Não há registros de sinais no intervalo selecionado.")
+    st.markdown('<div class="note-box">A taxa de acerto é calculada somente entre os meses em que houve emissão de sinal. A cobertura indica a proporção do período de teste em que o mecanismo emitiu algum sinal. O mecanismo é experimental e não deve ser usado isoladamente para decisões comerciais.</div>', unsafe_allow_html=True)
 
 # =========================== RIDGE =============================
 elif pagina == "🤖 Modelagem Ridge":
@@ -794,22 +855,30 @@ elif pagina == "🤖 Modelagem Ridge":
     metrics = carregar_csv_flexivel("10_metricas_modelagem.csv")
     coefficients = carregar_csv_flexivel("10_coeficientes_ridge.csv")
     predictions = carregar_csv_flexivel("10_previsoes_teste_2020_2025.csv")
-    titulo_secao("Indicadores de desempenho", "Selecione o modelo para ver as métricas do teste e, no Ridge, o alpha selecionado pela validação temporal.")
+    st.info("As métricas resumem o conjunto de teste completo (jan/2020 a dez/2025; 72 observações). O filtro de período altera apenas o gráfico de previsões, não recalcula as métricas.")
+    titulo_secao("Desempenho no conjunto de teste", "Escolha um modelo. As métricas de preço (R$ por saca) e de variação mensal (pontos percentuais) são apresentadas separadamente.")
     if not metrics.empty and "modelo" in metrics.columns:
         model_names = metrics["modelo"].dropna().astype(str).tolist()
         selected_model = st.selectbox("Modelo", model_names, index=(model_names.index("Ridge") if "Ridge" in model_names else 0))
         row = metrics[metrics["modelo"].astype(str)==selected_model].iloc[0]
-        metric_map = [("mae_preco","MAE preço"),("rmse_preco","RMSE preço"),("mape_preco_pct","MAPE preço (%)"),("r2_variacao","R² variação"),("acuracia_direcao","Acerto direção"),("alpha_ridge","Alpha Ridge")]
-        if selected_model != "Ridge": metric_map = [m for m in metric_map if m[0] != "alpha_ridge"]
-        cards = st.columns(min(4,len(metric_map)))
-        for i,(key,label) in enumerate(metric_map):
-            val=pd.to_numeric(pd.Series([row.get(key)]),errors="coerce").iloc[0]
-            with cards[i%len(cards)]:
-                if pd.isna(val): st.metric(label,"—")
-                elif "acuracia" in key: st.metric(label,f"{val:.1%}")
-                elif key=="alpha_ridge": st.metric(label,f"{val:g}")
-                elif "pct" in key: st.metric(label,f"{val:.2f}%")
-                else: st.metric(label,f"{val:.3f}")
+        st.markdown("**Estimativa do preço (R$/saca de 60 kg)**")
+        price_metrics = [("mae_preco", "MAE"), ("rmse_preco", "RMSE"), ("mape_preco_pct", "MAPE")]
+        price_cards = st.columns(3)
+        for col, (key, label) in zip(price_cards, price_metrics):
+            val = pd.to_numeric(pd.Series([row.get(key)]), errors="coerce").iloc[0]
+            with col:
+                st.metric(label, "—" if pd.isna(val) else (f"{val:.2f}%" if key == "mape_preco_pct" else f"R$ {val:.2f}"))
+        st.markdown("**Desempenho na variação mensal e direção**")
+        variation_metrics = [("mae_variacao_pct_pontos", "MAE variação (p.p.)"), ("rmse_variacao_pct_pontos", "RMSE variação (p.p.)"), ("r2_variacao", "R² variação"), ("acuracia_direcao", "Acurácia direcional"), ("acuracia_balanceada_direcao", "Acurácia balanceada")]
+        var_cards = st.columns(5)
+        for col, (key, label) in zip(var_cards, variation_metrics):
+            val = pd.to_numeric(pd.Series([row.get(key)]), errors="coerce").iloc[0]
+            with col:
+                shown = "—" if pd.isna(val) else (f"{val:.1%}" if "acuracia" in key else f"{val:.3f}")
+                st.metric(label, shown)
+        if selected_model == "Ridge":
+            alpha = pd.to_numeric(pd.Series([row.get("alpha_ridge")]), errors="coerce").iloc[0]
+            st.caption(f"Alpha selecionado na validação temporal: {alpha:g}" if pd.notna(alpha) else "Alpha Ridge não informado.")
     else: st.info("Arquivo de métricas não encontrado ou vazio.")
     st.markdown("---")
     titulo_secao("Coeficientes estimados pelo Ridge", "Magnitude e direção dos coeficientes padronizados. Valores positivos e negativos indicam direções distintas no modelo.")
