@@ -293,6 +293,27 @@ div[data-testid="stMetric"] [data-testid="stMetricValue"] {
 [data-baseweb="calendar"] * {
     color: #222222 !important;
 }
+/* Corrigir a cor das datas no seletor de período */
+section[data-testid="stSidebar"] [data-testid="stDateInput"] input {
+    color: #000000 !important;
+    -webkit-text-fill-color: #000000 !important;
+    background-color: #FFFFFF !important;
+    caret-color: #000000 !important;
+    opacity: 1 !important;
+}
+
+/* Garantir que o texto digitado e exibido fique preto */
+section[data-testid="stSidebar"] [data-testid="stDateInput"] input::placeholder {
+    color: #000000 !important;
+    -webkit-text-fill-color: #000000 !important;
+    opacity: 1 !important;
+}
+
+/* Ícone do calendário */
+section[data-testid="stSidebar"] [data-testid="stDateInput"] button svg {
+    color: #000000 !important;
+    fill: #000000 !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
