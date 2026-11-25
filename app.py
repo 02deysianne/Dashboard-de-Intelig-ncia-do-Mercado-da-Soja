@@ -51,17 +51,29 @@ section[data-testid="stSidebar"] * {
     color: #FFFFFF !important;
 }
 
-/* Campo de data: texto preto */
+/* Campo de data transparente, com borda e texto preto */
 section[data-testid="stSidebar"] [data-testid="stDateInput"] input {
-    color: #222222 !important;
-    background: #FFFFFF !important;
-    -webkit-text-fill-color: #222222 !important;
-    caret-color: #222222 !important;
+    color: #000000 !important;
+    background: transparent !important;
+    -webkit-text-fill-color: #000000 !important;
+    caret-color: #000000 !important;
+    border: 1px solid #FFFFFF !important;
+    border-radius: 6px !important;
+    box-shadow: none !important;
 }
 
+/* Fundo do contêiner transparente */
+section[data-testid="stSidebar"] [data-testid="stDateInput"] [data-baseweb="input"],
+section[data-testid="stSidebar"] [data-testid="stDateInput"] [data-baseweb="base-input"] {
+    background: transparent !important;
+    border: 1px solid #FFFFFF !important;
+    box-shadow: none !important;
+}
+
+/* Ícone do calendário */
 section[data-testid="stSidebar"] [data-testid="stDateInput"] svg {
-    fill: #222222 !important;
-    color: #222222 !important;
+    fill: #000000 !important;
+    color: #000000 !important;
 }
 
 /* Campo de seleção */
