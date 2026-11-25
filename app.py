@@ -51,27 +51,37 @@ section[data-testid="stSidebar"] * {
     color: #FFFFFF !important;
 }
 
-/* Campo de data totalmente transparente */
+/* =====================================================
+   CAMPO DE DATA - FUNDO TOTALMENTE TRANSPARENTE
+   ===================================================== */
+
+/* Remove o fundo branco de toda a estrutura do campo */
 section[data-testid="stSidebar"] [data-testid="stDateInput"],
 section[data-testid="stSidebar"] [data-testid="stDateInput"] > div,
 section[data-testid="stSidebar"] [data-testid="stDateInput"] [data-baseweb="input"],
 section[data-testid="stSidebar"] [data-testid="stDateInput"] [data-baseweb="base-input"],
 section[data-testid="stSidebar"] [data-testid="stDateInput"] [data-baseweb="input"] > div,
-section[data-testid="stSidebar"] [data-testid="stDateInput"] [data-baseweb="base-input"] > div {
+section[data-testid="stSidebar"] [data-testid="stDateInput"] [data-baseweb="base-input"] > div,
+section[data-testid="stSidebar"] [data-testid="stDateInput"] [role="presentation"] {
     background: transparent !important;
     background-color: transparent !important;
     border: none !important;
     box-shadow: none !important;
 }
 
-/* Datas exibidas no campo */
+/* Remove o fundo dos elementos internos */
+section[data-testid="stSidebar"] [data-testid="stDateInput"] * {
+    background-color: transparent !important;
+    box-shadow: none !important;
+}
+
+/* Mantém os números das datas brancos */
 section[data-testid="stSidebar"] [data-testid="stDateInput"] input {
     color: #FFFFFF !important;
     -webkit-text-fill-color: #FFFFFF !important;
     background: transparent !important;
     background-color: transparent !important;
     border: none !important;
-    box-shadow: none !important;
     outline: none !important;
     caret-color: #FFFFFF !important;
 }
@@ -83,18 +93,16 @@ section[data-testid="stSidebar"] [data-testid="stDateInput"] input::placeholder 
     opacity: 1 !important;
 }
 
-/* Botão e ícone do calendário */
+/* Botão e calendário */
 section[data-testid="stSidebar"] [data-testid="stDateInput"] button {
     background: transparent !important;
     border: none !important;
-    box-shadow: none !important;
 }
 
 section[data-testid="stSidebar"] [data-testid="stDateInput"] svg {
     color: #FFFFFF !important;
     fill: #FFFFFF !important;
-}
-/* Campo de seleção */
+}/* Campo de seleção */
 section[data-testid="stSidebar"] [data-testid="stSelectbox"] input {
     color: #222222 !important;
     background: #FFFFFF !important;
