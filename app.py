@@ -51,31 +51,38 @@ section[data-testid="stSidebar"] * {
     color: #FFFFFF !important;
 }
 
-/* Campo de data transparente, com borda e texto preto */
+/* Campo de data sem fundo e sem borda */
 section[data-testid="stSidebar"] [data-testid="stDateInput"] input {
-    color: #000000 !important;
+    color: #FFFFFF !important;
+    -webkit-text-fill-color: #FFFFFF !important;
     background: transparent !important;
-    -webkit-text-fill-color: #000000 !important;
-    caret-color: #000000 !important;
-    border: 1px solid #FFFFFF !important;
-    border-radius: 6px !important;
+    border: none !important;
     box-shadow: none !important;
+    outline: none !important;
+    caret-color: #FFFFFF !important;
 }
 
-/* Fundo do contêiner transparente */
+/* Remove o fundo e a borda dos contêineres */
+section[data-testid="stSidebar"] [data-testid="stDateInput"],
+section[data-testid="stSidebar"] [data-testid="stDateInput"] > div,
 section[data-testid="stSidebar"] [data-testid="stDateInput"] [data-baseweb="input"],
 section[data-testid="stSidebar"] [data-testid="stDateInput"] [data-baseweb="base-input"] {
     background: transparent !important;
-    border: 1px solid #FFFFFF !important;
+    border: none !important;
     box-shadow: none !important;
+}
+
+/* Texto auxiliar */
+section[data-testid="stSidebar"] [data-testid="stDateInput"] input::placeholder {
+    color: #FFFFFF !important;
+    -webkit-text-fill-color: #FFFFFF !important;
 }
 
 /* Ícone do calendário */
 section[data-testid="stSidebar"] [data-testid="stDateInput"] svg {
-    fill: #000000 !important;
-    color: #000000 !important;
+    color: #FFFFFF !important;
+    fill: #FFFFFF !important;
 }
-
 /* Campo de seleção */
 section[data-testid="stSidebar"] [data-testid="stSelectbox"] input {
     color: #222222 !important;
