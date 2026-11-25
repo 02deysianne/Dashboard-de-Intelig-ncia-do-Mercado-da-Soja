@@ -25,52 +25,274 @@ st.set_page_config(
 
 # ----------------------------- VISUAL ----------------------------
 st.markdown("""<style>
-body, [class*="css"] {font-family: 'DM Sans', sans-serif;}
-.stApp {background:#F5F7F4; color:#F4F7;}
-[data-testid="stHeader"] {background:rgba(245,247,244,.94);}
-#MainMenu, footer {visibility:hidden;}
+body, [class*="css"] {
+    font-family: 'DM Sans', sans-serif;
+}
 
+.stApp {
+    background: #F5F7F4;
+    color: #333333;
+}
+
+[data-testid="stHeader"] {
+    background: rgba(245,247,244,.94);
+}
+
+#MainMenu, footer {
+    visibility: hidden;
+}
+
+/* SIDEBAR */
 section[data-testid="stSidebar"] {
     background: #173D32;
 }
+
 section[data-testid="stSidebar"] * {
     color: #FFFFFF !important;
 }
-section[data-testid="stSidebar"] [data-testid="stDateInput"] input,
-section[data-testid="stSidebar"] [data-testid="stSelectbox"] input {
-    color: #203128 !important;
-    background: white !important;
-    -webkit-text-fill-color: #203128 !important;
+
+/* Campo de data: texto preto */
+section[data-testid="stSidebar"] [data-testid="stDateInput"] input {
+    color: #222222 !important;
+    background: #FFFFFF !important;
+    -webkit-text-fill-color: #222222 !important;
+    caret-color: #222222 !important;
 }
 
-.brand {font-size:25px;font-weight:800;letter-spacing:-.8px;color:white;}
-.brand-sub,.side-caption {color:#C8D9CD !important;font-size:11px;line-height:1.5;}
-.eyebrow {color:#47745A;text-transform:uppercase;font-weight:800;letter-spacing:1.5px;font-size:10px;margin-bottom:6px;}
-.page-title {font-weight:800;color:#183C30;letter-spacing:-.7px;font-size:30px;margin:0;}
-.page-subtitle {color:#222222;font-size:13px;margin:4px 0 16px;}
-.hero {background:linear-gradient(115deg,#173D32 0%,#286247 68%,#477D55 100%);border-radius:16px;padding:21px 24px;color:white;margin:2px 0 18px;}
-.hero-kicker {color:#D5E6D8;font-size:10px;letter-spacing:1.4px;text-transform:uppercase;font-weight:800;}
-.hero-title {color:white;font-size:24px;font-weight:800;margin:6px 0;}
-.hero-text {color:#E0ECE2;font-size:12px;max-width:800px;}
-.kpi-card {background:white;border:1px solid #E5EBE5;border-radius:13px;padding:14px 16px;min-height:95px;box-shadow:0 3px 12px rgba(28,55,39,.035);}
-.kpi-label {color:#7B8980;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;}
-.kpi-value {color:#193F31;font-size:23px;font-weight:800;margin-top:7px;line-height:1.15;}
-.kpi-note {color:#849087;font-size:10px;margin-top:4px;}
-.section-heading {color:#214635;font-size:17px;font-weight:800;margin:7px 0 2px;}
-.section-caption {color:#222222;font-size:11px;margin-bottom:10px;}
-.note-box {background:#EDF4ED;border-left:4px solid #4C805B;border-radius:8px;padding:10px 13px;color:#355440;font-size:12px;}
-.footer-line {color:#91A097;font-size:10px;text-align:center;padding:16px 0 4px;}
-div[data-testid="stMetric"] {background:white;border:1px solid #E5EBE5;padding:12px 14px;border-radius:12px;}
-div[data-testid="stMetric"] label {color:#718078 !important;font-size:10px !important;text-transform:uppercase;}
-div[data-testid="stMetric"] [data-testid="stMetricValue"] {color:#193F31;font-weight:800;}
-.stTabs [data-baseweb="tab-list"] {gap:6px;}
-.stTabs [data-baseweb="tab"] {background:white;border:1px solid #E5EBE5;border-radius:8px 8px 0 0;padding:7px 12px;font-size:12px;}
-.stTabs [aria-selected="true"] {color:#245744 !important;border-bottom:3px solid #3E805B !important;}
+section[data-testid="stSidebar"] [data-testid="stDateInput"] svg {
+    fill: #222222 !important;
+    color: #222222 !important;
+}
 
-.insight-card {background:#FFFFFF;border:1px solid #E3EAE3;border-radius:13px;padding:15px 16px;margin-bottom:12px;box-shadow:0 3px 12px rgba(28,55,39,.035);}
-.insight-label {color:#7B8980;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;}
-.insight-number {color:#193F31;font-size:23px;font-weight:800;margin-top:7px;line-height:1.2;}
-.insight-description {color:#718078;font-size:11px;line-height:1.5;margin-top:6px;}
+/* Campo de seleção */
+section[data-testid="stSidebar"] [data-testid="stSelectbox"] input {
+    color: #222222 !important;
+    background: #FFFFFF !important;
+    -webkit-text-fill-color: #222222 !important;
+}
+
+/* Textos gerais da área principal */
+section.main,
+[data-testid="stMain"] {
+    color: #333333;
+}
+
+section.main p,
+section.main label,
+section.main span,
+section.main small,
+section.main [data-testid="stMarkdownContainer"],
+[data-testid="stMain"] p,
+[data-testid="stMain"] label,
+[data-testid="stMain"] span,
+[data-testid="stMain"] small {
+    color: #333333;
+}
+
+/* Títulos */
+.page-title {
+    font-weight: 800;
+    color: #183C30 !important;
+    letter-spacing: -.7px;
+    font-size: 30px;
+    margin: 0;
+}
+
+.page-subtitle {
+    color: #333333 !important;
+    font-size: 13px;
+    margin: 4px 0 16px;
+}
+
+.eyebrow {
+    color: #47745A !important;
+    text-transform: uppercase;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    font-size: 10px;
+    margin-bottom: 6px;
+}
+
+.brand {
+    font-size: 25px;
+    font-weight: 800;
+    letter-spacing: -.8px;
+    color: white !important;
+}
+
+.brand-sub,
+.side-caption {
+    color: #C8D9CD !important;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.hero {
+    background: linear-gradient(115deg,#173D32 0%,#286247 68%,#477D55 100%);
+    border-radius: 16px;
+    padding: 21px 24px;
+    color: white;
+    margin: 2px 0 18px;
+}
+
+.hero-kicker {
+    color: #D5E6D8 !important;
+    font-size: 10px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    font-weight: 800;
+}
+
+.hero-title {
+    color: white !important;
+    font-size: 24px;
+    font-weight: 800;
+    margin: 6px 0;
+}
+
+.hero-text {
+    color: #E0ECE2 !important;
+    font-size: 12px;
+    max-width: 800px;
+}
+
+.kpi-card {
+    background: white;
+    border: 1px solid #E5EBE5;
+    border-radius: 13px;
+    padding: 14px 16px;
+    min-height: 95px;
+    box-shadow: 0 3px 12px rgba(28,55,39,.035);
+}
+
+.kpi-label {
+    color: #59665E !important;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .7px;
+}
+
+.kpi-value {
+    color: #193F31 !important;
+    font-size: 23px;
+    font-weight: 800;
+    margin-top: 7px;
+    line-height: 1.15;
+}
+
+.kpi-note {
+    color: #59665E !important;
+    font-size: 10px;
+    margin-top: 4px;
+}
+
+.section-heading {
+    color: #214635 !important;
+    font-size: 17px;
+    font-weight: 800;
+    margin: 7px 0 2px;
+}
+
+.section-caption {
+    color: #333333 !important;
+    font-size: 11px;
+    margin-bottom: 10px;
+}
+
+.note-box {
+    background: #EDF4ED;
+    border-left: 4px solid #4C805B;
+    border-radius: 8px;
+    padding: 10px 13px;
+    color: #333333 !important;
+    font-size: 12px;
+}
+
+.footer-line {
+    color: #59665E !important;
+    font-size: 10px;
+    text-align: center;
+    padding: 16px 0 4px;
+}
+
+div[data-testid="stMetric"] {
+    background: white;
+    border: 1px solid #E5EBE5;
+    padding: 12px 14px;
+    border-radius: 12px;
+}
+
+div[data-testid="stMetric"] label {
+    color: #59665E !important;
+    font-size: 10px !important;
+    text-transform: uppercase;
+}
+
+div[data-testid="stMetric"] [data-testid="stMetricValue"] {
+    color: #193F31 !important;
+    font-weight: 800;
+}
+
+.stTabs [data-baseweb="tab-list"] {
+    gap: 6px;
+}
+
+.stTabs [data-baseweb="tab"] {
+    background: white;
+    border: 1px solid #E5EBE5;
+    border-radius: 8px 8px 0 0;
+    padding: 7px 12px;
+    font-size: 12px;
+    color: #333333 !important;
+}
+
+.stTabs [aria-selected="true"] {
+    color: #245744 !important;
+    border-bottom: 3px solid #3E805B !important;
+}
+
+.insight-card {
+    background: #FFFFFF;
+    border: 1px solid #E3EAE3;
+    border-radius: 13px;
+    padding: 15px 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 3px 12px rgba(28,55,39,.035);
+}
+
+.insight-label {
+    color: #59665E !important;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .7px;
+}
+
+.insight-number {
+    color: #193F31 !important;
+    font-size: 23px;
+    font-weight: 800;
+    margin-top: 7px;
+    line-height: 1.2;
+}
+
+.insight-description {
+    color: #59665E !important;
+    font-size: 11px;
+    line-height: 1.5;
+    margin-top: 6px;
+}
+
+/* Textos dos gráficos Plotly */
+.js-plotly-plot .plotly text {
+    fill: #222222 !important;
+}
+
+/* Calendário do seletor de datas */
+[data-baseweb="calendar"] * {
+    color: #222222 !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -847,89 +1069,10 @@ if not df_deral.empty:
 df_base, coluna_data = normalizar_data(df_base)
 
 
-# --------------------- PREÇO NOMINAL E REAL ---------------------
-# A correção utiliza o IPCA disponível na base consolidada.
-# Dezembro de 2025 é a referência, quando esse índice existir.
-
+# --------------------- PREÇO NOMINAL ----------------------------
+# O dashboard utilizará somente o preço nominal.
 df_preco = df_deral.copy()
-ipca_base = None
 preco_real_disponivel = False
-
-base_ipca = carregar_dados_principais()
-
-if not base_ipca.empty:
-    base_ipca, data_ipca = normalizar_data(base_ipca)
-
-    if data_ipca:
-        base_ipca[data_ipca] = pd.to_datetime(
-            base_ipca[data_ipca],
-            errors="coerce"
-        )
-
-        coluna_ipca = next(
-            (
-                c for c in base_ipca.columns
-                if str(c).strip().lower() == "ipca_num_indice"
-            ),
-            None
-        )
-
-        if coluna_ipca:
-            base_ipca[coluna_ipca] = pd.to_numeric(
-                base_ipca[coluna_ipca],
-                errors="coerce"
-            )
-
-            base_ipca = base_ipca[
-                [data_ipca, coluna_ipca]
-            ].dropna()
-
-            base_ipca = base_ipca.rename(
-                columns={data_ipca: "data"}
-            )
-
-            # A junção por mês evita perder observações
-            # quando as datas possuem dias diferentes.
-            base_ipca["mes_referencia"] = (
-                base_ipca["data"].dt.to_period("M")
-            )
-
-            df_preco["data"] = pd.to_datetime(
-                df_preco["data"],
-                errors="coerce"
-            )
-
-            df_preco["mes_referencia"] = (
-                df_preco["data"].dt.to_period("M")
-            )
-
-            df_preco = df_preco.merge(
-                base_ipca[
-                    ["mes_referencia", coluna_ipca]
-                ],
-                on="mes_referencia",
-                how="left"
-            )
-
-            referencia_ipca = base_ipca[
-                base_ipca["data"] <= pd.Timestamp("2025-12-31")
-            ].sort_values("data")
-
-            if not referencia_ipca.empty:
-                ipca_base = referencia_ipca[
-                    coluna_ipca
-                ].iloc[-1]
-
-                if pd.notna(ipca_base) and ipca_base != 0:
-                    df_preco["preco_soja_real"] = (
-                        df_preco["preco_soja_pr"]
-                        * ipca_base
-                        / df_preco[coluna_ipca]
-                    )
-
-                    preco_real_disponivel = (
-                        df_preco["preco_soja_real"].notna().sum() > 0
-                    )
 
 
 # -------------------------- SIDEBAR ----------------------------
@@ -1005,25 +1148,6 @@ with st.sidebar:
     st.markdown("---")
 
     st.markdown(
-        '<div class="side-caption"><b>VALORES DO PREÇO</b></div>',
-        unsafe_allow_html=True
-    )
-
-    opcoes_preco = ["Nominal"]
-
-    if preco_real_disponivel:
-        opcoes_preco.append("Real (IPCA)")
-
-    tipo_preco = st.radio(
-        "Tipo de preço",
-        opcoes_preco,
-        horizontal=True,
-        label_visibility="collapsed"
-    )
-
-    st.markdown("---")
-
-    st.markdown(
         '<div class="side-caption"><b>ESTÁGIO SUPERVISIONADO</b><br>'
         'Deysianne Souza<br>'
         'Orientador: Prof. Diego B. Santi<br>'
@@ -1032,7 +1156,7 @@ with st.sidebar:
     )
 
 
-# ------------------------ FILTROS E EXPORTAÇÃO ------------------
+# ------------------------ FILTROS -------------------------------
 if not df_base.empty and coluna_data:
     df_base = df_base[
         (df_base[coluna_data].dt.date >= start_date)
@@ -1047,77 +1171,15 @@ if not df_preco.empty:
 else:
     deral_filtrado = pd.DataFrame()
 
-coluna_preco_selecionada = (
-    "preco_soja_real"
-    if tipo_preco == "Real (IPCA)" and preco_real_disponivel
-    else "preco_soja_pr"
-)
-
-rotulo_preco = (
-    "Preço real (R$/saca de 60 kg, IPCA dez/2025)"
-    if coluna_preco_selecionada == "preco_soja_real"
-    else "Preço nominal (R$/saca de 60 kg)"
-)
-
-st.sidebar.markdown("---")
-
-st.sidebar.markdown(
-    '<div class="side-caption"><b>EXPORTAR DADOS</b></div>',
-    unsafe_allow_html=True
-)
-
-if not deral_filtrado.empty:
-    st.sidebar.download_button(
-        "⬇️ Baixar preço DERAL (CSV)",
-        data=deral_filtrado.drop(
-            columns=["mes_referencia"],
-            errors="ignore"
-        ).to_csv(
-            index=False,
-            sep=";",
-            decimal=","
-        ).encode("utf-8-sig"),
-        file_name="preco_soja_deral_filtrado.csv",
-        mime="text/csv",
-        use_container_width=True
-    )
-
-base_exportacao = carregar_dados_principais()
-
-if not base_exportacao.empty:
-    base_exportacao, data_exportacao = normalizar_data(
-        base_exportacao
-    )
-
-    if data_exportacao:
-        base_exportacao[data_exportacao] = pd.to_datetime(
-            base_exportacao[data_exportacao],
-            errors="coerce"
-        )
-
-        base_exportacao = base_exportacao[
-            (base_exportacao[data_exportacao].dt.date >= start_date)
-            & (base_exportacao[data_exportacao].dt.date <= end_date)
-        ]
-
-    st.sidebar.download_button(
-        "⬇️ Baixar indicadores (CSV)",
-        data=base_exportacao.to_csv(
-            index=False,
-            sep=";",
-            decimal=","
-        ).encode("utf-8-sig"),
-        file_name="indicadores_mercado_filtrados.csv",
-        mime="text/csv",
-        use_container_width=True
-    )
+# Mantém o preço nominal como única opção.
+coluna_preco_selecionada = "preco_soja_pr"
+rotulo_preco = "Preço nominal (R$/saca de 60 kg)"
 
 
 st.markdown(
     '<div class="eyebrow">PAINEL DE INTELIGÊNCIA DO AGRONEGÓCIO</div>',
     unsafe_allow_html=True
 )
-
 
 # ============================ HOME =============================
 if pagina == "🏠 Visão Geral":
@@ -1158,17 +1220,9 @@ if pagina == "🏠 Visão Geral":
         )
 
     if not preco_df.empty:
-        ultimo = float(
-            preco_df["preco_soja_pr"].iloc[-1]
-        )
-
-        media_periodo = float(
-            preco_df["preco_soja_pr"].mean()
-        )
-
-        primeiro = float(
-            preco_df["preco_soja_pr"].iloc[0]
-        )
+        ultimo = float(preco_df["preco_soja_pr"].iloc[-1])
+        media_periodo = float(preco_df["preco_soja_pr"].mean())
+        primeiro = float(preco_df["preco_soja_pr"].iloc[0])
 
         variacao_periodo = (
             ((ultimo / primeiro) - 1) * 100
@@ -1232,12 +1286,7 @@ if pagina == "🏠 Visão Geral":
         with left:
             titulo_secao(
                 "Evolução do preço da soja no Paraná",
-                f"{rotulo_preco}. "
-                + (
-                    "Valores corrigidos pela inflação, com dezembro de 2025 como referência."
-                    if coluna_preco_selecionada == "preco_soja_real"
-                    else "Valores observados sem correção monetária pela inflação."
-                )
+                f"{rotulo_preco}. Valores observados sem correção monetária pela inflação."
             )
 
             fig_preco = px.area(
@@ -2170,7 +2219,6 @@ elif pagina == "📊 Análise Exploratória":
                 "ou sem estrutura esperada."
             )
 
-
 # ====================== CORRELAÇÕES/LAGS =======================
 elif pagina == "🔗 Correlações e Lags":
 
@@ -2391,8 +2439,6 @@ elif pagina == "🔗 Correlações e Lags":
                 "variações mensais; não demonstram causalidade."
             )
 
-            # Significância estatística: utiliza somente colunas
-            # de p-valores realmente existentes no arquivo.
             colunas_p = [
                 c for c in plot_var.columns
                 if (
@@ -2454,7 +2500,7 @@ elif pagina == "🔗 Correlações e Lags":
                         barmode="group",
                         color_discrete_map={
                             "Significativo (p < 0,05)": "#4C805B",
-                            "Não significativo (p ≥ 0,05)": "#C47762"
+                            "Não significativo (p ≥ 0,05)": "#777777"
                         },
                         labels={
                             "p-valor": "p-valor",
@@ -3040,7 +3086,7 @@ elif pagina == "⚠️ Sinais de Atenção":
                 ),
                 color_discrete_map={
                     "alta": "#4C805B",
-                    "baixa": "#C47762",
+                    "baixa": "#777777",
                     "sem sinal": "#AAB4AC"
                 },
                 labels={
@@ -3115,7 +3161,7 @@ elif pagina == "⚠️ Sinais de Atenção":
                     color="Resultado",
                     color_discrete_map={
                         "Coincidiu com a direção observada": "#4C805B",
-                        "Não coincidiu com a direção observada": "#C47762"
+                        "Não coincidiu com a direção observada": "#777777"
                     },
                     text="Quantidade",
                     labels={
