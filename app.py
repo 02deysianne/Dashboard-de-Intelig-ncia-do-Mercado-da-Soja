@@ -253,7 +253,7 @@ div[data-testid="stMetric"] [data-testid="stMetricValue"] {
 }
 
 .insight-card {
-    background: #000000;
+    background: #FFFFFF;
     border: 1px solid #E3EAE3;
     border-radius: 13px;
     padding: 15px 16px;
