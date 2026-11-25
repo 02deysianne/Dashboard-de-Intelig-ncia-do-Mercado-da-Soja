@@ -297,7 +297,7 @@ div[data-testid="stMetric"] [data-testid="stMetricValue"] {
 section[data-testid="stSidebar"] [data-testid="stDateInput"] input {
     color: #000000 !important;
     -webkit-text-fill-color: #000000 !important;
-    background-color: #FFFFFF !important;
+    background-color: #000000 !important;
     caret-color: #000000 !important;
     opacity: 1 !important;
 }
