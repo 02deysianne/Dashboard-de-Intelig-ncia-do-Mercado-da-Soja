@@ -1,2186 +1,3550 @@
+
 # ============================================================
-# AGRODATA PR
-# Análise de Indicadores de Mercado e Defasagens Temporais
-# para Monitoramento do Preço da Soja no Paraná
+# AGRODATA PR | Dashboard de monitoramento e análise da soja
+# Versão integrada - Streamlit + Plotly
 # ============================================================
 
-from pathlib import Path
+import os
 import json
 import re
 import unicodedata
-import math
+from pathlib import Path
+from datetime import date
 
 import pandas as pd
-import numpy as np
 import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-
-
-# ============================================================
-# 1. CONFIGURAÇÃO
-# ============================================================
 
 st.set_page_config(
-    page_title="AgroData PR | Mercado da Soja",
+    page_title="AgroData PR | Inteligência no Agronegócio",
     page_icon="🌱",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
-PASTA_APP = Path(__file__).resolve().parent
-PASTAS_RESULTADOS = [
-    PASTA_APP / "resultados",
-    PASTA_APP / "resultados" / "tabelas",
-    PASTA_APP
-]
+# ----------------------------- VISUAL ----------------------------
+st.markdown("""<style>
+body, [class*="css"] {font-family: 'DM Sans', sans-serif;}
+.stApp {background:#F5F7F4; color:#F4F7;}
+[data-testid="stHeader"] {background:rgba(245,247,244,.94);}
+#MainMenu, footer {visibility:hidden;}
 
-CORES = {
-    "verde": "#16845B",
-    "verde_claro": "#DDF3E9",
-    "azul": "#2878B5",
-    "azul_escuro": "#17466D",
-    "laranja": "#E69B35",
-    "vermelho": "#D9534F",
-    "roxo": "#8064A2",
-    "cinza": "#6B7280"
+section[data-testid="stSidebar"] {
+    background: #173D32;
+}
+section[data-testid="stSidebar"] * {
+    color: #FFFFFF !important;
+}
+section[data-testid="stSidebar"] [data-testid="stDateInput"] input,
+section[data-testid="stSidebar"] [data-testid="stSelectbox"] input {
+    color: #203128 !important;
+    background: white !important;
+    -webkit-text-fill-color: #203128 !important;
 }
 
-TEMA_GRAFICO = "plotly_white"
+.brand {font-size:25px;font-weight:800;letter-spacing:-.8px;color:white;}
+.brand-sub,.side-caption {color:#C8D9CD !important;font-size:11px;line-height:1.5;}
+.eyebrow {color:#47745A;text-transform:uppercase;font-weight:800;letter-spacing:1.5px;font-size:10px;margin-bottom:6px;}
+.page-title {font-weight:800;color:#183C30;letter-spacing:-.7px;font-size:30px;margin:0;}
+.page-subtitle {color:#222222;font-size:13px;margin:4px 0 16px;}
+.hero {background:linear-gradient(115deg,#173D32 0%,#286247 68%,#477D55 100%);border-radius:16px;padding:21px 24px;color:white;margin:2px 0 18px;}
+.hero-kicker {color:#D5E6D8;font-size:10px;letter-spacing:1.4px;text-transform:uppercase;font-weight:800;}
+.hero-title {color:white;font-size:24px;font-weight:800;margin:6px 0;}
+.hero-text {color:#E0ECE2;font-size:12px;max-width:800px;}
+.kpi-card {background:white;border:1px solid #E5EBE5;border-radius:13px;padding:14px 16px;min-height:95px;box-shadow:0 3px 12px rgba(28,55,39,.035);}
+.kpi-label {color:#7B8980;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;}
+.kpi-value {color:#193F31;font-size:23px;font-weight:800;margin-top:7px;line-height:1.15;}
+.kpi-note {color:#849087;font-size:10px;margin-top:4px;}
+.section-heading {color:#214635;font-size:17px;font-weight:800;margin:7px 0 2px;}
+.section-caption {color:#222222;font-size:11px;margin-bottom:10px;}
+.note-box {background:#EDF4ED;border-left:4px solid #4C805B;border-radius:8px;padding:10px 13px;color:#355440;font-size:12px;}
+.footer-line {color:#91A097;font-size:10px;text-align:center;padding:16px 0 4px;}
+div[data-testid="stMetric"] {background:white;border:1px solid #E5EBE5;padding:12px 14px;border-radius:12px;}
+div[data-testid="stMetric"] label {color:#718078 !important;font-size:10px !important;text-transform:uppercase;}
+div[data-testid="stMetric"] [data-testid="stMetricValue"] {color:#193F31;font-weight:800;}
+.stTabs [data-baseweb="tab-list"] {gap:6px;}
+.stTabs [data-baseweb="tab"] {background:white;border:1px solid #E5EBE5;border-radius:8px 8px 0 0;padding:7px 12px;font-size:12px;}
+.stTabs [aria-selected="true"] {color:#245744 !important;border-bottom:3px solid #3E805B !important;}
 
-
-# ============================================================
-# 2. ESTILO
-# ============================================================
-
-st.markdown("""
-<style>
-    .stApp {
-        background-color: #F5F8F7;
-    }
-
-    section[data-testid="stSidebar"] {
-        background-color: #153F35;
-    }
-
-    section[data-testid="stSidebar"] * {
-        color: white;
-    }
-
-    section[data-testid="stSidebar"] input,
-    section[data-testid="stSidebar"] [data-baseweb="select"] {
-        color: #202020 !important;
-        background-color: white !important;
-    }
-
-    section[data-testid="stSidebar"] [data-baseweb="select"] * {
-        color: #202020 !important;
-    }
-
-    h1, h2, h3 {
-        color: #174D3B;
-    }
-
-    div[data-testid="stMetric"] {
-        background-color: white;
-        border: 1px solid #E2EAE6;
-        padding: 15px;
-        border-radius: 12px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.03);
-    }
-
-    .subtitulo {
-        color: #64748B;
-        font-size: 15px;
-        margin-top: -10px;
-    }
-
-    .caixa-info {
-        background-color: #EAF4EF;
-        border-left: 5px solid #16845B;
-        padding: 14px;
-        border-radius: 7px;
-        margin: 10px 0 20px 0;
-    }
+.insight-card {background:#FFFFFF;border:1px solid #E3EAE3;border-radius:13px;padding:15px 16px;margin-bottom:12px;box-shadow:0 3px 12px rgba(28,55,39,.035);}
+.insight-label {color:#7B8980;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;}
+.insight-number {color:#193F31;font-size:23px;font-weight:800;margin-top:7px;line-height:1.2;}
+.insight-description {color:#718078;font-size:11px;line-height:1.5;margin-top:6px;}
 </style>
 """, unsafe_allow_html=True)
 
 
-# ============================================================
-# 3. FUNÇÕES DE NORMALIZAÇÃO E LEITURA
-# ============================================================
-
-def normalizar_coluna(nome):
-    """Padroniza nomes de colunas, removendo acentos e espaços."""
-
-    nome = str(nome).strip().lower()
-
-    nome = unicodedata.normalize("NFKD", nome)
-    nome = "".join(
-        caractere for caractere in nome
-        if not unicodedata.combining(caractere)
-    )
-
-    nome = re.sub(r"[^a-z0-9]+", "_", nome)
-    nome = re.sub(r"_+", "_", nome)
-
-    return nome.strip("_")
-
-
-def converter_valor_numerico(valor):
-    """Converte valores numéricos com vírgula decimal ou símbolos."""
-
-    if pd.isna(valor):
-        return np.nan
-
-    if isinstance(valor, (int, float, np.number)):
-        return float(valor)
-
-    texto = str(valor).strip()
-
-    if texto.lower() in ["", "nan", "none", "-", "—", "null"]:
-        return np.nan
-
-    texto = texto.replace("R$", "")
-    texto = texto.replace("US$", "")
-    texto = texto.replace("$", "")
-    texto = texto.replace("%", "")
-    texto = texto.replace(" ", "")
-
-    if "," in texto and "." in texto:
-        if texto.rfind(",") > texto.rfind("."):
-            texto = texto.replace(".", "")
-            texto = texto.replace(",", ".")
-        else:
-            texto = texto.replace(",", "")
-
-    elif "," in texto:
-        texto = texto.replace(",", ".")
-
-    try:
-        return float(texto)
-    except (ValueError, TypeError):
-        return np.nan
+# ------------------------- NOMES AMIGÁVEIS -----------------------
+NOMES = {
+    "soja_internacional_usd_t": "Preço internacional da soja (US$/tonelada)",
+    "exportacao_soja_ton": "Exportações brasileiras de soja (toneladas)",
+    "ipca_num_indice": "Índice de inflação (IPCA)",
+    "brent_usd_barril": "Petróleo Brent (US$/barril)",
+    "fertilizantes_indice": "Índice de fertilizantes",
+    "var_exportacao_soja_pct": "Variação das exportações de soja (%)",
+    "var_preco_soja_pr_pct": "Variação do preço da soja no Paraná (%)",
+    "var_cambio_usd_brl_pct": "Variação do câmbio (%)",
+    "var_soja_internacional_pct": "Variação da soja internacional (%)",
+    "var_brent_pct": "Variação do Brent (%)",
+    "var_fertilizantes_pct": "Variação dos fertilizantes (%)",
+    "var_ipca_indice_pct": "Variação do IPCA (%)",
+    "soja_internacional_usd": "Preço internacional da soja (US$)",
+    "preco_soja_deral": "Preço da soja no Paraná (DERAL)",
+    "preco_soja_pr": "Preço da soja no Paraná (DERAL, R$/saca de 60 kg)",
+    "soja_deral": "Preço da soja – DERAL",
+    "cambio_brl_usd": "Taxa de câmbio (R$/US$)",
+    "cambio": "Taxa de câmbio",
+    "dolar": "Cotação do dólar",
+    "milho": "Preço do milho",
+    "petroleo": "Preço do petróleo",
+    "petróleo": "Preço do petróleo",
+    "fertilizantes": "Índice de preços de fertilizantes",
+    "ipca": "Inflação (IPCA)",
+    "selic": "Taxa básica de juros (Selic)",
+    "data": "Data",
+    "preco_observado": "Preço observado da soja",
+    "preco_previsto_baseline": "Previsão – modelo de referência",
+    "preco_previsto_linear": "Previsão – modelo linear",
+    "preco_previsto_ridge": "Previsão – modelo Ridge",
+    "mes": "Mês",
+    "mês": "Mês",
+    "ano": "Ano",
+    "variavel": "Indicador",
+    "variável": "Indicador",
+    "correlacao": "Coeficiente de correlação",
+    "correlação": "Coeficiente de correlação",
+    "lag": "Defasagem (meses)",
+    "defasagem": "Defasagem (meses)",
+    "coeficiente": "Coeficiente estimado",
+    "pontuacao": "Pontuação dos sinais",
+    "pontuação": "Pontuação dos sinais",
+}
 
 
-def ler_csv(caminho):
-    """Lê CSV tentando diferentes codificações e separadores."""
+def nome_amigavel(nome):
+    chave = str(nome).strip()
+    if chave in NOMES:
+        return NOMES[chave]
+    if chave.lower() in NOMES:
+        return NOMES[chave.lower()]
 
-    separadores = [",", ";", "\t", None]
-    codificacoes = ["utf-8-sig", "latin1", "cp1252"]
+    texto = re.sub(r"[_\-]+", " ", chave)
+    texto = re.sub(r"\s+", " ", texto).strip()
+    return texto[:1].upper() + texto[1:]
 
-    melhor_df = None
-    melhor_pontuacao = -1
 
-    for codificacao in codificacoes:
-        for separador in separadores:
-            try:
-                df = pd.read_csv(
-                    caminho,
-                    sep=separador,
-                    encoding=codificacao,
-                    engine="python",
-                    on_bad_lines="skip"
-                )
+def normalizar_data(df):
+    if df is None or df.empty:
+        return df, None
 
-                if df.empty:
-                    continue
+    candidatos = {
+        "data", "date", "periodo", "período",
+        "mes", "mês", "month"
+    }
 
-                df.columns = [
-                    normalizar_coluna(coluna)
-                    for coluna in df.columns
-                ]
+    for col in df.columns:
+        if str(col).strip().lower() in candidatos:
+            raw = df[col].astype(str).str.strip()
+            iso = raw.str.match(r"^\d{4}-\d{2}-\d{2}", na=False)
 
-                pontuacao = len(df.columns)
-
-                if pontuacao > melhor_pontuacao:
-                    melhor_df = df.copy()
-                    melhor_pontuacao = pontuacao
-
-            except Exception:
-                continue
-
-    if melhor_df is None:
-        return pd.DataFrame()
-
-    # Converte colunas que aparentam ser numéricas.
-    for coluna in melhor_df.columns:
-        if melhor_df[coluna].dtype == "object":
-            convertida = melhor_df[coluna].apply(
-                converter_valor_numerico
+            converted = pd.Series(
+                pd.NaT,
+                index=df.index,
+                dtype="datetime64[ns]"
             )
 
-            proporcao = convertida.notna().mean()
+            converted.loc[iso] = pd.to_datetime(
+                raw.loc[iso],
+                errors="coerce",
+                yearfirst=True
+            )
 
-            if proporcao >= 0.60:
-                melhor_df[coluna] = convertida
+            converted.loc[~iso] = pd.to_datetime(
+                raw.loc[~iso],
+                errors="coerce",
+                dayfirst=True
+            )
 
-    return melhor_df
+            if converted.notna().any():
+                out = df.copy()
+                out[col] = converted
+                return out, col
+
+    return df, None
+
+
+# ----------------------------- LEITURA --------------------------
+APP_DIR = Path(__file__).resolve().parent
+
+ROOTS = [
+    APP_DIR / "resultados" / "tabelas",
+    APP_DIR / "resultados",
+    APP_DIR,
+]
 
 
 def localizar_arquivo(nome):
-    """Procura um arquivo nas pastas de resultados."""
-
-    for pasta in PASTAS_RESULTADOS:
-        caminho = pasta / nome
-
-        if caminho.exists():
-            return caminho
-
+    for root in ROOTS:
+        candidate = root / nome
+        if candidate.exists() and candidate.is_file():
+            return candidate
     return None
 
 
-def carregar_resultado(nome):
-    """Carrega CSV ou Parquet, priorizando Parquet."""
+@st.cache_data(show_spinner=False)
+def carregar_csv_flexivel(nome):
+    path = localizar_arquivo(nome)
 
-    nome_base = Path(nome).stem
+    if not path:
+        return pd.DataFrame()
 
-    parquet = localizar_arquivo(nome_base + ".parquet")
-    csv = localizar_arquivo(nome_base + ".csv")
+    for sep in [None, ",", ";", "\t"]:
+        try:
+            df = pd.read_csv(
+                path,
+                sep=sep,
+                engine="python",
+                encoding="utf-8-sig"
+            )
 
-    try:
-        if parquet:
-            return pd.read_parquet(parquet)
+            df.columns = [
+                str(c).replace("\ufeff", "").strip()
+                for c in df.columns
+            ]
 
-        if csv:
-            return ler_csv(csv)
+            if df.shape[1] > 1 or sep is not None:
+                return df
 
-    except Exception as erro:
-        st.warning(f"Não foi possível carregar {nome}: {erro}")
+        except Exception:
+            pass
 
     return pd.DataFrame()
 
 
+@st.cache_data(show_spinner=False)
+def carregar_dados_principais():
+    nomes_obrigatorios = {
+        "data",
+        "soja_internacional_usd_t",
+        "brent_usd_barril",
+        "cambio_usd_brl",
+        "fertilizantes_indice"
+    }
+
+    for nome in [
+        "dados_consolidados_dashboard.csv",
+        "dados_consolidados_dashboard.parquet"
+    ]:
+        path = localizar_arquivo(nome)
+
+        if not path:
+            continue
+
+        try:
+            if path.suffix.lower() == ".parquet":
+                df = pd.read_parquet(path)
+            else:
+                df = pd.read_csv(
+                    path,
+                    sep=",",
+                    encoding="utf-8-sig"
+                )
+
+            df.columns = [
+                str(c).replace("\ufeff", "").strip().lower()
+                for c in df.columns
+            ]
+
+            if df.empty or not nomes_obrigatorios.issubset(set(df.columns)):
+                continue
+
+            datas = pd.to_datetime(df["data"], errors="coerce")
+
+            if datas.notna().sum() == 0:
+                continue
+
+            df["data"] = datas
+
+            for col in nomes_obrigatorios - {"data"}:
+                df[col] = pd.to_numeric(
+                    df[col],
+                    errors="coerce"
+                )
+
+            return df
+
+        except Exception:
+            continue
+
+    return pd.DataFrame()
+
+
+@st.cache_data(show_spinner=False)
 def carregar_metadata():
-    caminho = localizar_arquivo("metadata_dashboard.json")
+    path = localizar_arquivo("metadata_dashboard.json")
 
-    if caminho is None:
-        return {}
+    if path:
+        try:
+            return json.loads(
+                path.read_text(encoding="utf-8")
+            )
+        except Exception:
+            pass
 
-    try:
-        with open(caminho, "r", encoding="utf-8") as arquivo:
-            return json.load(arquivo)
-    except Exception:
-        return {}
+    return {}
 
 
-def encontrar_coluna(df, alternativas):
-    """Encontra uma coluna a partir de uma lista de nomes possíveis."""
+@st.cache_data(show_spinner=False)
+def carregar_deral():
+    """Carrega e normaliza a série mensal de preços do DERAL."""
+
+    path = localizar_arquivo("deral_preco_soja_pr.csv")
+
+    if path is None:
+        return pd.DataFrame(
+            columns=["data", "preco_soja_pr"]
+        )
+
+    df = pd.DataFrame()
+
+    for sep in [None, ",", ";", "\t"]:
+        try:
+            tentativa = pd.read_csv(
+                path,
+                sep=sep,
+                engine="python",
+                encoding="utf-8-sig"
+            )
+
+            tentativa.columns = [
+                str(col).replace("\ufeff", "").strip().lower()
+                for col in tentativa.columns
+            ]
+
+            if {"data", "preco_soja_pr"}.issubset(tentativa.columns):
+                df = tentativa
+                break
+
+        except Exception:
+            continue
 
     if df.empty:
-        return None
+        return pd.DataFrame(
+            columns=["data", "preco_soja_pr"]
+        )
 
-    colunas = list(df.columns)
-
-    for alternativa in alternativas:
-        nome = normalizar_coluna(alternativa)
-
-        if nome in colunas:
-            return nome
-
-    for coluna in colunas:
-        for alternativa in alternativas:
-            nome = normalizar_coluna(alternativa)
-
-            if nome in coluna:
-                return coluna
-
-    return None
-
-
-def normalizar_data(df):
-    """Identifica e converte a coluna de data."""
-
-    if df.empty:
-        return df
-
-    coluna_data = encontrar_coluna(
-        df,
-        [
-            "data", "date", "periodo", "mes", "month",
-            "data_referencia", "data_referencia_mes",
-            "mes_referencia", "ano_mes"
-        ]
+    datas_texto = df["data"].astype(str).str.strip()
+    mascara_iso = datas_texto.str.match(
+        r"^\d{4}-\d{2}-\d{2}",
+        na=False
     )
 
-    if coluna_data is None:
-        return df
+    datas_convertidas = pd.Series(
+        pd.NaT,
+        index=df.index,
+        dtype="datetime64[ns]"
+    )
 
-    df = df.copy()
+    datas_convertidas.loc[mascara_iso] = pd.to_datetime(
+        datas_texto.loc[mascara_iso],
+        errors="coerce",
+        yearfirst=True
+    )
 
-    datas = pd.to_datetime(
-        df[coluna_data],
+    datas_convertidas.loc[~mascara_iso] = pd.to_datetime(
+        datas_texto.loc[~mascara_iso],
         errors="coerce",
         dayfirst=True
     )
 
-    # Trata datas no formato YYYYMM.
-    if datas.notna().sum() == 0:
-        texto = df[coluna_data].astype(str).str.replace(
-            r"\.0$", "", regex=True
-        )
+    df["data"] = datas_convertidas
 
-        datas = pd.to_datetime(
-            texto,
-            format="%Y%m",
-            errors="coerce"
-        )
+    preco = df["preco_soja_pr"].astype(str).str.strip()
+    preco = preco.str.replace("R$", "", regex=False)
+    preco = preco.str.replace(" ", "", regex=False)
 
-    # Trata datas no formato YYYY-MM.
-    if datas.notna().sum() == 0:
-        datas = pd.to_datetime(
-            df[coluna_data].astype(str) + "-01",
-            errors="coerce"
-        )
+    tem_virgula = preco.str.contains(",", regex=False)
 
-    df["data"] = datas
+    preco.loc[tem_virgula] = (
+        preco.loc[tem_virgula]
+        .str.replace(".", "", regex=False)
+        .str.replace(",", ".", regex=False)
+    )
 
-    return df.dropna(subset=["data"]).sort_values("data")
+    df["preco_soja_pr"] = pd.to_numeric(
+        preco,
+        errors="coerce"
+    )
+
+    df = df.dropna(
+        subset=["data", "preco_soja_pr"]
+    )
+
+    df = df.sort_values("data").drop_duplicates(
+        subset=["data"],
+        keep="last"
+    )
+
+    return df[
+        ["data", "preco_soja_pr"]
+    ].reset_index(drop=True)
 
 
 def filtrar_periodo(df, inicio, fim):
-    if df.empty or "data" not in df.columns:
-        return df
+    if df is None or df.empty:
+        return pd.DataFrame(), None
 
-    return df[
-        (df["data"] >= pd.Timestamp(inicio))
-        & (df["data"] <= pd.Timestamp(fim))
-    ].copy()
+    out, col_data = normalizar_data(df.copy())
 
+    if col_data and inicio and fim:
+        out = out[
+            (out[col_data].dt.date >= inicio)
+            & (out[col_data].dt.date <= fim)
+        ]
 
-def colunas_numericas(df, excluir=None):
-    if df.empty:
-        return []
-
-    excluir = excluir or []
-
-    return [
-        coluna for coluna in df.select_dtypes(include=np.number).columns
-        if coluna not in excluir
-    ]
+    return out, col_data
 
 
-def nome_legivel(nome):
-    return str(nome).replace("_", " ").strip().title()
-
-
-def formatar_numero(valor, casas=2):
-    if pd.isna(valor):
-        return "—"
-
-    return f"{valor:,.{casas}f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
-
-def mostrar_metricas(df, coluna):
-    if df.empty or coluna not in df.columns:
-        st.info("Não há dados suficientes para calcular os indicadores.")
-        return
-
-    serie = pd.to_numeric(df[coluna], errors="coerce").dropna()
-
-    if serie.empty:
-        st.info("A coluna selecionada não possui valores numéricos.")
-        return
-
-    c1, c2, c3, c4 = st.columns(4)
-
-    c1.metric("Valor mais recente", formatar_numero(serie.iloc[-1]))
-    c2.metric("Média", formatar_numero(serie.mean()))
-    c3.metric("Mínimo", formatar_numero(serie.min()))
-    c4.metric("Máximo", formatar_numero(serie.max()))
-
-
-def mostrar_grafico(fig, altura=430):
+# --------------------------- GRÁFICOS --------------------------
+def preparar_figura(fig, altura=360):
     fig.update_layout(
-        template=TEMA_GRAFICO,
+        template="plotly_white",
         height=altura,
-        margin=dict(l=20, r=20, t=65, b=35),
-        hovermode="x unified",
-        legend_title_text="Indicadores"
+        margin=dict(l=12, r=14, t=45, b=12),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(
+            family="DM Sans",
+            size=11,
+            color="#000000"
+        ),
+        legend=dict(
+            title="",
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="left",
+            x=0,
+            font=dict(size=10)
+        ),
+        hoverlabel=dict(
+            bgcolor="white",
+            font_size=11
+        ),
+        showlegend=True,
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    fig.update_xaxes(
+        showgrid=False,
+        linecolor="#000000",
+        tickfont=dict(color="#000000"),
+        title_font=dict(color="#000000")
+    )
+
+    fig.update_yaxes(
+        gridcolor="#EDF1ED",
+        zeroline=False,
+        tickfont=dict(color="#000000"),
+        title_font=dict(color="#000000")
+    )
+
+    fig.update_layout(
+        legend=dict(font=dict(color="#000000")),
+        title_font=dict(color="#000000")
+    )
+
+    return fig
 
 
-def baixar_csv(df, nome_arquivo, chave):
-    if df.empty:
+def titulo_secao(titulo, descricao=None):
+    st.markdown(
+        f'<div class="section-heading">{titulo}</div>',
+        unsafe_allow_html=True
+    )
+
+    if descricao:
+        st.markdown(
+            f'<div class="section-caption">{descricao}</div>',
+            unsafe_allow_html=True
+        )
+
+
+def grafico(df, titulo, altura=360, chave=None, tipo="auto"):
+    if df is None or df.empty:
+        st.info(f"Não há dados disponíveis para: {titulo}.")
         return
 
-    arquivo = df.to_csv(index=False).encode("utf-8-sig")
+    data, col_data = normalizar_data(df.copy())
+    data = data.dropna(axis=1, how="all")
 
-    st.download_button(
-        label="⬇️ Baixar dados deste gráfico",
-        data=arquivo,
-        file_name=nome_arquivo,
-        mime="text/csv",
+    for c in data.columns:
+        if c == col_data:
+            continue
+
+        if data[c].dtype == object:
+            txt = (
+                data[c]
+                .astype(str)
+                .str.strip()
+                .str.replace(" ", "", regex=False)
+            )
+
+            if txt.str.contains(",", regex=False).any():
+                if txt.str.contains(r"\.", regex=True).any():
+                    txt = txt.str.replace(".", "", regex=False)
+
+                txt = txt.str.replace(",", ".", regex=False)
+
+            num = pd.to_numeric(txt, errors="coerce")
+
+            if num.notna().sum() >= max(2, int(len(data) * 0.5)):
+                data[c] = num
+
+    numericas = data.select_dtypes(
+        include="number"
+    ).columns.tolist()
+
+    categoricas = [
+        c for c in data.columns
+        if c not in numericas and c != col_data
+    ]
+
+    if tipo == "heatmap" or (
+        len(data) == len(numericas)
+        and categoricas
+        and len(numericas) >= 2
+    ):
+        try:
+            index_col = categoricas[0]
+
+            matrix = data.set_index(index_col)[
+                numericas
+            ].apply(pd.to_numeric, errors="coerce")
+
+            matrix.index = matrix.index.map(nome_amigavel)
+            matrix.columns = matrix.columns.map(nome_amigavel)
+
+            fig = px.imshow(
+                matrix,
+                text_auto=".2f",
+                aspect="auto",
+                zmin=-1,
+                zmax=1,
+                color_continuous_scale=[
+                    "#B85C4A",
+                    "#F7F5EA",
+                    "#347653"
+                ],
+                labels={
+                    "color": "Correlação",
+                    "x": "Indicador",
+                    "y": "Indicador"
+                }
+            )
+
+            fig.update_layout(
+                title=None,
+                xaxis_tickangle=-35
+            )
+
+            st.plotly_chart(
+                preparar_figura(fig, max(440, altura)),
+                use_container_width=True,
+                key=chave
+            )
+            return
+
+        except Exception:
+            pass
+
+    if tipo == "heatmap" and numericas:
+        ycol = next(
+            (
+                c for c in numericas
+                if any(
+                    k in c.lower()
+                    for k in ["correl", "rho", "coef"]
+                )
+            ),
+            numericas[-1]
+        )
+
+        labels = [
+            c for c in data.columns
+            if c not in numericas and c != col_data
+        ]
+
+        if labels:
+            labelcol = labels[0]
+
+            plot = data[
+                [labelcol, ycol]
+            ].copy().dropna().sort_values(ycol)
+
+            plot[labelcol] = plot[labelcol].astype(str)
+
+            fig = px.bar(
+                plot,
+                x=ycol,
+                y=labelcol,
+                orientation="h",
+                color=ycol,
+                color_continuous_scale=[
+                    "#B85C4A",
+                    "#F7F5EA",
+                    "#347653"
+                ],
+                labels={
+                    ycol: "Coeficiente",
+                    labelcol: "Comparação"
+                }
+            )
+
+            fig.update_layout(
+                title=None,
+                coloraxis_showscale=False
+            )
+
+            fig.add_vline(
+                x=0,
+                line_color="#222",
+                line_width=1
+            )
+
+            st.plotly_chart(
+                preparar_figura(fig, max(440, altura)),
+                use_container_width=True,
+                key=chave
+            )
+            return
+
+    if col_data and numericas:
+        long = data[
+            [col_data] + numericas
+        ].melt(
+            id_vars=col_data,
+            var_name="Indicador",
+            value_name="Valor"
+        ).dropna()
+
+        long["Indicador"] = long["Indicador"].map(
+            nome_amigavel
+        )
+
+        fig = px.line(
+            long,
+            x=col_data,
+            y="Valor",
+            color="Indicador",
+            labels={
+                col_data: "Período",
+                "Valor": "Valor",
+                "Indicador": "Indicador"
+            }
+        )
+
+        fig.update_traces(
+            line=dict(width=2.4)
+        )
+
+        fig.update_layout(title=None)
+
+        st.plotly_chart(
+            preparar_figura(fig, altura),
+            use_container_width=True,
+            key=chave
+        )
+        return
+
+    if numericas and categoricas:
+        categoria = categoricas[0]
+
+        if len(numericas) == 1:
+            y = numericas[0]
+
+            plot = data[
+                [categoria, y]
+            ].copy().dropna(subset=[y])
+
+            plot[categoria] = plot[categoria].astype(str)
+
+            fig = px.bar(
+                plot,
+                x=categoria,
+                y=y,
+                labels={
+                    categoria: nome_amigavel(categoria),
+                    y: nome_amigavel(y)
+                },
+                color_discrete_sequence=["#4C805B"]
+            )
+
+        else:
+            plot = data[
+                [categoria] + numericas
+            ].melt(
+                id_vars=categoria,
+                var_name="Indicador",
+                value_name="Valor"
+            ).dropna()
+
+            plot["Indicador"] = plot["Indicador"].map(
+                nome_amigavel
+            )
+
+            fig = px.bar(
+                plot,
+                x=categoria,
+                y="Valor",
+                color="Indicador",
+                barmode="group"
+            )
+
+        fig.update_layout(title=None)
+
+        st.plotly_chart(
+            preparar_figura(fig, altura),
+            use_container_width=True,
+            key=chave
+        )
+        return
+
+    if numericas:
+        resumo = data[numericas].mean(
+            numeric_only=True
+        ).reset_index()
+
+        resumo.columns = ["Indicador", "Média"]
+        resumo["Indicador"] = resumo["Indicador"].map(
+            nome_amigavel
+        )
+
+        fig = px.bar(
+            resumo,
+            x="Indicador",
+            y="Média",
+            color="Indicador",
+            labels={
+                "Indicador": "Indicador",
+                "Média": "Média"
+            }
+        )
+
+        fig.update_layout(title=None)
+
+        st.plotly_chart(
+            preparar_figura(fig, altura),
+            use_container_width=True,
+            key=chave
+        )
+        return
+
+    categoria = data.columns[0]
+
+    freq = (
+        data[categoria]
+        .astype(str)
+        .value_counts()
+        .head(15)
+        .reset_index()
+    )
+
+    freq.columns = [
+        nome_amigavel(categoria),
+        "Quantidade"
+    ]
+
+    fig = px.bar(
+        freq,
+        x=nome_amigavel(categoria),
+        y="Quantidade",
+        color_discrete_sequence=["#4C805B"]
+    )
+
+    fig.update_layout(title=None)
+
+    st.plotly_chart(
+        preparar_figura(fig, altura),
+        use_container_width=True,
         key=chave
     )
 
 
-def aviso_sem_dados(nome):
-    st.info(
-        f"Não foram encontrados dados suficientes para apresentar "
-        f"o gráfico de {nome}. Verifique se o arquivo correspondente "
-        f"está na pasta `resultados`."
+def mostrar_metricas(df, prefixo):
+    if df is None or df.empty:
+        st.info(
+            f"Resultados de métricas ({prefixo}) não encontrados no período."
+        )
+        return
+
+    nums = df.select_dtypes(
+        include="number"
+    ).columns.tolist()
+
+    if not nums:
+        st.info(
+            "O arquivo de métricas não contém valores numéricos "
+            "que possam ser exibidos como indicadores."
+        )
+        return
+
+    linha = df.iloc[0]
+
+    for inicio in range(0, len(nums), 4):
+        bloco = nums[inicio:inicio + 4]
+        cols = st.columns(len(bloco))
+
+        for col, c in zip(cols, bloco):
+            val = pd.to_numeric(
+                pd.Series([linha[c]]),
+                errors="coerce"
+            ).iloc[0]
+
+            with col:
+                st.metric(
+                    nome_amigavel(c),
+                    f"{val:,.3f}" if pd.notna(val) else "—"
+                )
+
+
+# ------------------------- DADOS BASE ---------------------------
+df_base = carregar_dados_principais()
+metadata = carregar_metadata()
+df_deral = carregar_deral()
+
+# Integra o DERAL como série estadual de referência,
+# mantendo as outras variáveis.
+if not df_deral.empty:
+    if not df_base.empty:
+        base_norm, base_date = normalizar_data(df_base)
+
+        if base_date and base_date != "data":
+            base_norm = base_norm.rename(
+                columns={base_date: "data"}
+            )
+
+        if "data" in base_norm.columns:
+            base_norm["data"] = pd.to_datetime(
+                base_norm["data"],
+                errors="coerce"
+            )
+
+            base_norm = (
+                base_norm
+                .drop(columns=["preco_soja_pr"], errors="ignore")
+                .merge(df_deral, on="data", how="outer")
+            )
+
+            df_base = base_norm
+
+        else:
+            df_base = df_deral.copy()
+
+    else:
+        df_base = df_deral.copy()
+
+df_base, coluna_data = normalizar_data(df_base)
+
+
+# --------------------- PREÇO NOMINAL E REAL ---------------------
+# A correção utiliza o IPCA disponível na base consolidada.
+# Dezembro de 2025 é a referência, quando esse índice existir.
+
+df_preco = df_deral.copy()
+ipca_base = None
+preco_real_disponivel = False
+
+base_ipca = carregar_dados_principais()
+
+if not base_ipca.empty:
+    base_ipca, data_ipca = normalizar_data(base_ipca)
+
+    if data_ipca:
+        base_ipca[data_ipca] = pd.to_datetime(
+            base_ipca[data_ipca],
+            errors="coerce"
+        )
+
+        coluna_ipca = next(
+            (
+                c for c in base_ipca.columns
+                if str(c).strip().lower() == "ipca_num_indice"
+            ),
+            None
+        )
+
+        if coluna_ipca:
+            base_ipca[coluna_ipca] = pd.to_numeric(
+                base_ipca[coluna_ipca],
+                errors="coerce"
+            )
+
+            base_ipca = base_ipca[
+                [data_ipca, coluna_ipca]
+            ].dropna()
+
+            base_ipca = base_ipca.rename(
+                columns={data_ipca: "data"}
+            )
+
+            # A junção por mês evita perder observações
+            # quando as datas possuem dias diferentes.
+            base_ipca["mes_referencia"] = (
+                base_ipca["data"].dt.to_period("M")
+            )
+
+            df_preco["data"] = pd.to_datetime(
+                df_preco["data"],
+                errors="coerce"
+            )
+
+            df_preco["mes_referencia"] = (
+                df_preco["data"].dt.to_period("M")
+            )
+
+            df_preco = df_preco.merge(
+                base_ipca[
+                    ["mes_referencia", coluna_ipca]
+                ],
+                on="mes_referencia",
+                how="left"
+            )
+
+            referencia_ipca = base_ipca[
+                base_ipca["data"] <= pd.Timestamp("2025-12-31")
+            ].sort_values("data")
+
+            if not referencia_ipca.empty:
+                ipca_base = referencia_ipca[
+                    coluna_ipca
+                ].iloc[-1]
+
+                if pd.notna(ipca_base) and ipca_base != 0:
+                    df_preco["preco_soja_real"] = (
+                        df_preco["preco_soja_pr"]
+                        * ipca_base
+                        / df_preco[coluna_ipca]
+                    )
+
+                    preco_real_disponivel = (
+                        df_preco["preco_soja_real"].notna().sum() > 0
+                    )
+
+
+# -------------------------- SIDEBAR ----------------------------
+with st.sidebar:
+    st.markdown("🌱")
+
+    st.markdown(
+        '<div class="brand">AgroData PR</div>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        '<div class="brand-sub">Inteligência e monitoramento<br>do mercado da soja</div>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown("---")
+
+    st.markdown(
+        '<div class="side-caption"><b>NAVEGAÇÃO</b></div>',
+        unsafe_allow_html=True
+    )
+
+    pagina = st.radio(
+        "Seções",
+        [
+            "🏠 Visão Geral",
+            "📊 Análise Exploratória",
+            "🔗 Correlações e Lags",
+            "⚠️ Sinais de Atenção",
+            "🤖 Modelagem e Validação"
+        ],
+        label_visibility="collapsed"
+    )
+
+    st.markdown("---")
+
+    st.markdown(
+        '<div class="side-caption"><b>PERÍODO</b></div>',
+        unsafe_allow_html=True
+    )
+
+    date_min = date(2000, 1, 1)
+    date_max = date(2025, 12, 31)
+
+    date_range = st.date_input(
+        "Período (selecione as datas inicial e final)",
+        value=(date_min, date_max),
+        min_value=date_min,
+        max_value=date_max,
+        format="DD/MM/YYYY",
+        help=(
+            "Use as datas inicial e final para mudar o período mensal "
+            "exibido nos gráficos. Limites: 01/01/2000 a 31/12/2025."
+        ),
+    )
+
+    if isinstance(date_range, (tuple, list)) and len(date_range) == 2:
+        start_date, end_date = date_range
+
+    elif isinstance(date_range, (tuple, list)) and len(date_range) == 1:
+        start_date, end_date = date_range[0], date_max
+
+    else:
+        start_date, end_date = date_min, date_max
+
+    st.caption(
+        f"Período selecionado: "
+        f"{start_date.strftime('%d/%m/%Y')} a "
+        f"{end_date.strftime('%d/%m/%Y')}"
+    )
+
+    st.markdown("---")
+
+    st.markdown(
+        '<div class="side-caption"><b>VALORES DO PREÇO</b></div>',
+        unsafe_allow_html=True
+    )
+
+    opcoes_preco = ["Nominal"]
+
+    if preco_real_disponivel:
+        opcoes_preco.append("Real (IPCA)")
+
+    tipo_preco = st.radio(
+        "Tipo de preço",
+        opcoes_preco,
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+
+    st.markdown("---")
+
+    st.markdown(
+        '<div class="side-caption"><b>ESTÁGIO SUPERVISIONADO</b><br>'
+        'Deysianne Souza<br>'
+        'Orientador: Prof. Diego B. Santi<br>'
+        'UNICENTRO · 2026</div>',
+        unsafe_allow_html=True
     )
 
 
-# ============================================================
-# 4. CARREGAMENTO DAS BASES
-# ============================================================
-
-@st.cache_data
-def carregar_bases():
-    dados = carregar_resultado("dados_consolidados_dashboard")
-
-    if dados.empty:
-        dados = carregar_resultado("dados_consolidados")
-
-    dados = normalizar_data(dados)
-
-    deral = carregar_resultado("deral_preco_soja_pr")
-
-    # Trata DERAL no formato mensal longitudinal.
-    if not deral.empty:
-        deral = normalizar_data(deral)
-
-        coluna_preco = encontrar_coluna(
-            deral,
-            [
-                "preco_soja_pr", "preco_soja", "preco",
-                "valor", "valor_sc", "preco_sc_60kg"
-            ]
-        )
-
-        if coluna_preco and coluna_preco != "preco_soja_pr":
-            deral = deral.rename(
-                columns={coluna_preco: "preco_soja_pr"}
-            )
-
-        # Trata DERAL no formato original: ANO + JAN...DEZ.
-        if "data" not in deral.columns:
-            coluna_ano = encontrar_coluna(
-                deral, ["ano", "year"]
-            )
-
-            meses = {
-                "jan": 1, "janeiro": 1,
-                "fev": 2, "fevereiro": 2,
-                "mar": 3, "marco": 3,
-                "abr": 4, "abril": 4,
-                "mai": 5, "maio": 5,
-                "jun": 6, "junho": 6,
-                "jul": 7, "julho": 7,
-                "ago": 8, "agosto": 8,
-                "set": 9, "setembro": 9,
-                "out": 10, "outubro": 10,
-                "nov": 11, "novembro": 11,
-                "dez": 12, "dezembro": 12
-            }
-
-            if coluna_ano:
-                colunas_meses = {
-                    coluna: meses[coluna]
-                    for coluna in deral.columns
-                    if coluna in meses
-                }
-
-                if colunas_meses:
-                    deral[coluna_ano] = pd.to_numeric(
-                        deral[coluna_ano], errors="coerce"
-                    )
-
-                    deral = deral.dropna(subset=[coluna_ano])
-
-                    deral_longo = deral.melt(
-                        id_vars=[coluna_ano],
-                        value_vars=list(colunas_meses.keys()),
-                        var_name="mes",
-                        value_name="preco_soja_pr"
-                    )
-
-                    deral_longo["numero_mes"] = (
-                        deral_longo["mes"].map(colunas_meses)
-                    )
-
-                    deral_longo["data"] = pd.to_datetime(
-                        dict(
-                            year=deral_longo[coluna_ano].astype(int),
-                            month=deral_longo["numero_mes"],
-                            day=1
-                        ),
-                        errors="coerce"
-                    )
-
-                    deral_longo["preco_soja_pr"] = (
-                        deral_longo["preco_soja_pr"].apply(
-                            converter_valor_numerico
-                        )
-                    )
-
-                    deral = deral_longo[
-                        ["data", "preco_soja_pr"]
-                    ].dropna()
-
-    arquivos = {
-        "estatisticas": "07_estatisticas_descritivas_niveis",
-        "sazonalidade": "07_sazonalidade_mensal",
-        "variacoes": "07_estatisticas_variacoes_mensais",
-        "correlacoes_niveis": "08_correlacoes_niveis",
-        "correlacoes_variacoes": "08_correlacoes_variacoes_mensais",
-        "melhores_lags": "08_melhores_defasagens_spearman",
-        "lags": "08_correlacoes_defasagens_0_6_meses",
-        "resumo_sinais": "10_resumo_sinais",
-        "regras_sinais": "10_regras_sinais_atencao",
-        "sinais": "10_sinais_atencao_mensais",
-        "metricas_modelagem": "10_metricas_modelagem",
-        "coeficientes": "10_coeficientes_ridge",
-        "previsoes": "10_previsoes_teste_2020_2025"
-    }
-
-    resultados = {
-        chave: normalizar_data(carregar_resultado(arquivo))
-        for chave, arquivo in arquivos.items()
-    }
-
-    return dados, deral, resultados, carregar_metadata()
-
-
-df, df_deral, resultados, metadata = carregar_bases()
-
-
-# ============================================================
-# 5. IDENTIFICAÇÃO DAS COLUNAS PRINCIPAIS
-# ============================================================
-
-COLUNAS_INDICADORES = {
-    "Preço da soja internacional": [
-        "soja_internacional_usd_t", "soja_usd_t",
-        "preco_soja_usd_t", "soja_internacional"
-    ],
-    "Petróleo Brent": [
-        "brent_usd_barril", "brent", "petroleo_brent",
-        "preco_brent"
-    ],
-    "Câmbio dólar/real": [
-        "cambio_usd_brl", "usd_brl", "dolar",
-        "taxa_cambio", "cambio"
-    ],
-    "Índice de fertilizantes": [
-        "fertilizantes_indice", "indice_fertilizantes",
-        "fertilizantes", "fertilizer_index"
+# ------------------------ FILTROS E EXPORTAÇÃO ------------------
+if not df_base.empty and coluna_data:
+    df_base = df_base[
+        (df_base[coluna_data].dt.date >= start_date)
+        & (df_base[coluna_data].dt.date <= end_date)
     ]
-}
 
-COLUNAS_PRECO_REAL = [
-    "preco_soja_real", "preco_soja_pr_real",
-    "preco_real", "preco_corrigido_ipca",
-    "preco_soja_corrigido_ipca"
-]
+if not df_preco.empty:
+    deral_filtrado = df_preco[
+        (df_preco["data"].dt.date >= start_date)
+        & (df_preco["data"].dt.date <= end_date)
+    ].copy()
+else:
+    deral_filtrado = pd.DataFrame()
 
-COLUNAS_PRECO_NOMINAL = [
-    "preco_soja_pr", "preco_soja", "preco_nominal",
-    "preco_soja_nominal", "preco"
-]
-
-coluna_preco_real = encontrar_coluna(df, COLUNAS_PRECO_REAL)
-coluna_preco_nominal = encontrar_coluna(df, COLUNAS_PRECO_NOMINAL)
-
-colunas_indicadores_encontradas = {}
-
-for nome, alternativas in COLUNAS_INDICADORES.items():
-    coluna = encontrar_coluna(df, alternativas)
-
-    if coluna:
-        colunas_indicadores_encontradas[nome] = coluna
-
-
-# ============================================================
-# 6. MENU LATERAL
-# ============================================================
-
-st.sidebar.markdown("# 🌱 AgroData PR")
-st.sidebar.caption("Monitoramento do mercado da soja no Paraná")
-
-pagina = st.sidebar.radio(
-    "Navegação",
-    [
-        "📊 Visão Geral",
-        "🔎 Análise Exploratória",
-        "🔗 Correlações e Defasagens",
-        "🚦 Sinais de Atenção",
-        "🤖 Modelagem e Validação"
-    ]
+coluna_preco_selecionada = (
+    "preco_soja_real"
+    if tipo_preco == "Real (IPCA)" and preco_real_disponivel
+    else "preco_soja_pr"
 )
 
-st.sidebar.divider()
+rotulo_preco = (
+    "Preço real (R$/saca de 60 kg, IPCA dez/2025)"
+    if coluna_preco_selecionada == "preco_soja_real"
+    else "Preço nominal (R$/saca de 60 kg)"
+)
 
-if not df.empty and "data" in df.columns:
-    data_min = df["data"].min().date()
-    data_max = df["data"].max().date()
+st.sidebar.markdown("---")
 
-    periodo = st.sidebar.date_input(
-        "Período de análise",
-        value=(data_min, data_max),
-        min_value=data_min,
-        max_value=data_max
-    )
-
-    if isinstance(periodo, tuple) and len(periodo) == 2:
-        inicio, fim = periodo
-    else:
-        inicio, fim = data_min, data_max
-
-    df_periodo = filtrar_periodo(df, inicio, fim)
-
-else:
-    inicio, fim = None, None
-    df_periodo = df.copy()
-
-st.sidebar.divider()
-st.sidebar.caption("Projeto de estágio curricular")
-
-
-# ============================================================
-# 7. FUNÇÕES DE GRÁFICOS
-# ============================================================
-
-def grafico_serie_temporal(base, coluna, titulo, eixo_y=None):
-    if base.empty or coluna not in base.columns or "data" not in base.columns:
-        aviso_sem_dados(titulo)
-        return
-
-    dados = base[["data", coluna]].copy()
-    dados[coluna] = pd.to_numeric(dados[coluna], errors="coerce")
-    dados = dados.dropna()
-
-    if dados.empty:
-        aviso_sem_dados(titulo)
-        return
-
-    fig = go.Figure()
-
-    fig.add_trace(go.Scatter(
-        x=dados["data"],
-        y=dados[coluna],
-        mode="lines",
-        name=nome_legivel(coluna),
-        line=dict(color=CORES["verde"], width=2.5),
-        fill="tozeroy",
-        fillcolor="rgba(22,132,91,0.08)"
-    ))
-
-    fig.update_layout(
-        title=titulo,
-        xaxis_title="Período",
-        yaxis_title=eixo_y or nome_legivel(coluna)
-    )
-
-    mostrar_grafico(fig)
-
-
-def grafico_comparacao_indicadores(base, colunas):
-    disponiveis = [
-        coluna for coluna in colunas
-        if coluna in base.columns
-    ]
-
-    if base.empty or not disponiveis or "data" not in base.columns:
-        aviso_sem_dados("comparação dos indicadores")
-        return
-
-    dados = base[["data"] + disponiveis].copy()
-
-    # Índice 100 para permitir comparação de escalas diferentes.
-    normalizados = []
-
-    for coluna in disponiveis:
-        serie = pd.to_numeric(dados[coluna], errors="coerce")
-        primeiro = serie.dropna().iloc[0] if serie.notna().any() else np.nan
-
-        if pd.notna(primeiro) and primeiro != 0:
-            dados[coluna + "_indice"] = (serie / primeiro) * 100
-            normalizados.append(coluna + "_indice")
-
-    if not normalizados:
-        aviso_sem_dados("comparação dos indicadores")
-        return
-
-    longo = dados.melt(
-        id_vars="data",
-        value_vars=normalizados,
-        var_name="indicador",
-        value_name="indice"
-    )
-
-    longo["indicador"] = (
-        longo["indicador"]
-        .str.replace("_indice", "", regex=False)
-        .map(nome_legivel)
-    )
-
-    fig = px.line(
-        longo,
-        x="data",
-        y="indice",
-        color="indicador",
-        title="Evolução comparativa dos indicadores — índice base 100"
-    )
-
-    fig.add_hline(
-        y=100,
-        line_dash="dash",
-        line_color="gray",
-        annotation_text="Base 100"
-    )
-
-    fig.update_yaxes(title="Índice (base 100)")
-    fig.update_xaxes(title="Período")
-
-    mostrar_grafico(fig)
-
-
-def grafico_distribuicao(base, coluna, titulo):
-    if base.empty or coluna not in base.columns:
-        aviso_sem_dados(titulo)
-        return
-
-    valores = pd.to_numeric(base[coluna], errors="coerce").dropna()
-
-    if valores.empty:
-        aviso_sem_dados(titulo)
-        return
-
-    fig = px.histogram(
-        x=valores,
-        nbins=30,
-        marginal="box",
-        title=titulo,
-        labels={"x": nome_legivel(coluna), "y": "Frequência"}
-    )
-
-    mostrar_grafico(fig)
-
-
-def grafico_boxplot(base, coluna, titulo):
-    if base.empty or coluna not in base.columns:
-        aviso_sem_dados(titulo)
-        return
-
-    valores = pd.to_numeric(base[coluna], errors="coerce").dropna()
-
-    if valores.empty:
-        aviso_sem_dados(titulo)
-        return
-
-    fig = px.box(
-        y=valores,
-        points="outliers",
-        title=titulo,
-        labels={"y": nome_legivel(coluna)}
-    )
-
-    mostrar_grafico(fig)
-
-
-def grafico_matriz_correlacao(base, colunas, titulo):
-    disponiveis = [
-        coluna for coluna in colunas
-        if coluna in base.columns
-    ]
-
-    if len(disponiveis) < 2:
-        aviso_sem_dados(titulo)
-        return
-
-    dados = base[disponiveis].apply(
-        pd.to_numeric, errors="coerce"
-    )
-
-    matriz = dados.corr(method="spearman")
-
-    fig = px.imshow(
-        matriz,
-        text_auto=".2f",
-        zmin=-1,
-        zmax=1,
-        color_continuous_scale="RdBu",
-        origin="lower",
-        title=titulo,
-        labels=dict(
-            x="Indicadores",
-            y="Indicadores",
-            color="Correlação"
-        )
-    )
-
-    mostrar_grafico(fig, altura=550)
-
-
-def grafico_colunas(df_base, coluna_x, coluna_y, titulo, eixo_y=None):
-    if df_base.empty:
-        aviso_sem_dados(titulo)
-        return
-
-    if coluna_x not in df_base.columns or coluna_y not in df_base.columns:
-        aviso_sem_dados(titulo)
-        return
-
-    dados = df_base.copy()
-    dados[coluna_y] = pd.to_numeric(
-        dados[coluna_y], errors="coerce"
-    )
-    dados = dados.dropna(subset=[coluna_y])
-
-    if dados.empty:
-        aviso_sem_dados(titulo)
-        return
-
-    fig = px.bar(
-        dados,
-        x=coluna_x,
-        y=coluna_y,
-        title=titulo,
-        labels={
-            coluna_x: nome_legivel(coluna_x),
-            coluna_y: eixo_y or nome_legivel(coluna_y)
-        },
-        text_auto=".2f"
-    )
-
-    mostrar_grafico(fig)
-
-
-# ============================================================
-# 8. CABEÇALHO
-# ============================================================
-
-st.title("🌱 Monitoramento do Mercado da Soja — Paraná")
-
-st.markdown(
-    '<p class="subtitulo">Análise de indicadores de mercado, '
-    'comportamento dos preços, correlações, defasagens temporais '
-    'e sinais de atenção.</p>',
+st.sidebar.markdown(
+    '<div class="side-caption"><b>EXPORTAR DADOS</b></div>',
     unsafe_allow_html=True
 )
 
-if df.empty:
-    st.warning(
-        "A base principal não foi localizada ou não pôde ser lida. "
-        "Verifique os arquivos na pasta `resultados`."
+if not deral_filtrado.empty:
+    st.sidebar.download_button(
+        "⬇️ Baixar preço DERAL (CSV)",
+        data=deral_filtrado.drop(
+            columns=["mes_referencia"],
+            errors="ignore"
+        ).to_csv(
+            index=False,
+            sep=";",
+            decimal=","
+        ).encode("utf-8-sig"),
+        file_name="preco_soja_deral_filtrado.csv",
+        mime="text/csv",
+        use_container_width=True
+    )
+
+base_exportacao = carregar_dados_principais()
+
+if not base_exportacao.empty:
+    base_exportacao, data_exportacao = normalizar_data(
+        base_exportacao
+    )
+
+    if data_exportacao:
+        base_exportacao[data_exportacao] = pd.to_datetime(
+            base_exportacao[data_exportacao],
+            errors="coerce"
+        )
+
+        base_exportacao = base_exportacao[
+            (base_exportacao[data_exportacao].dt.date >= start_date)
+            & (base_exportacao[data_exportacao].dt.date <= end_date)
+        ]
+
+    st.sidebar.download_button(
+        "⬇️ Baixar indicadores (CSV)",
+        data=base_exportacao.to_csv(
+            index=False,
+            sep=";",
+            decimal=","
+        ).encode("utf-8-sig"),
+        file_name="indicadores_mercado_filtrados.csv",
+        mime="text/csv",
+        use_container_width=True
     )
 
 
-# ============================================================
-# 9. VISÃO GERAL
-# ============================================================
+st.markdown(
+    '<div class="eyebrow">PAINEL DE INTELIGÊNCIA DO AGRONEGÓCIO</div>',
+    unsafe_allow_html=True
+)
 
-if pagina == "📊 Visão Geral":
 
-    st.header("Visão Geral do Mercado")
+# ============================ HOME =============================
+if pagina == "🏠 Visão Geral":
 
     st.markdown(
-        "Acompanhe a evolução do preço da soja no Paraná e observe "
-        "como os principais indicadores de mercado se comportaram "
-        "ao longo do período selecionado."
+        '<div class="page-title">Painel de Inteligência do Mercado da Soja</div>',
+        unsafe_allow_html=True
     )
-
-    preco_escolhido = None
-
-    opcoes_preco = {}
-
-    if coluna_preco_nominal:
-        opcoes_preco["Preço nominal"] = coluna_preco_nominal
-
-    if coluna_preco_real:
-        opcoes_preco["Preço corrigido pelo IPCA"] = coluna_preco_real
-
-    if opcoes_preco:
-        escolha = st.radio(
-            "Tipo de preço apresentado",
-            list(opcoes_preco.keys()),
-            horizontal=True
-        )
-
-        preco_escolhido = opcoes_preco[escolha]
-
-        if escolha == "Preço corrigido pelo IPCA":
-            st.caption(
-                "Valores apresentados conforme a série real disponível "
-                "na base. Confira a documentação da base para identificar "
-                "o mês de referência utilizado na correção."
-            )
-        else:
-            st.caption(
-                "Preço nominal: valores sem correção monetária pelo IPCA."
-            )
-
-    if preco_escolhido:
-        mostrar_metricas(df_periodo, preco_escolhido)
-
-        grafico_serie_temporal(
-            df_periodo,
-            preco_escolhido,
-            "Evolução do preço da soja no Paraná",
-            "Preço por saca (conforme unidade da base)"
-        )
-
-        baixar_csv(
-            df_periodo[["data", preco_escolhido]].dropna(),
-            "preco_soja_periodo.csv",
-            "download_preco_geral"
-        )
-
-    elif not df_deral.empty and "preco_soja_pr" in df_deral.columns:
-        deral_periodo = filtrar_periodo(df_deral, inicio, fim)
-
-        mostrar_metricas(deral_periodo, "preco_soja_pr")
-
-        grafico_serie_temporal(
-            deral_periodo,
-            "preco_soja_pr",
-            "Evolução do preço da soja no Paraná — DERAL"
-        )
-
-    else:
-        aviso_sem_dados("preço da soja")
-
-    st.divider()
-    st.subheader("Comparação dos indicadores de mercado")
-
-    colunas_comparacao = list(colunas_indicadores_encontradas.values())
-
-    if preco_escolhido:
-        colunas_comparacao = [preco_escolhido] + colunas_comparacao
-
-    grafico_comparacao_indicadores(
-        df_periodo,
-        colunas_comparacao
-    )
-
-    st.divider()
-    st.subheader("Comportamento mensal do preço")
-
-    sazonalidade = resultados["sazonalidade"]
-
-    if not sazonalidade.empty:
-        coluna_mes = encontrar_coluna(
-            sazonalidade, ["mes", "mes_numero", "mes_nome"]
-        )
-
-        coluna_media = encontrar_coluna(
-            sazonalidade,
-            ["media", "preco_medio", "media_preco", "media_mensal"]
-        )
-
-        if coluna_mes and coluna_media:
-            grafico_colunas(
-                sazonalidade,
-                coluna_mes,
-                coluna_media,
-                "Sazonalidade mensal do preço da soja",
-                "Preço médio"
-            )
-        else:
-            st.info(
-                "O arquivo de sazonalidade foi encontrado, mas suas "
-                "colunas não foram identificadas automaticamente."
-            )
-    else:
-        aviso_sem_dados("sazonalidade mensal")
-
-    st.markdown("""
-    <div class="caixa-info">
-    <b>Como interpretar:</b> a evolução do preço mostra a trajetória
-    histórica da soja. A comparação em índice base 100 permite observar
-    se os indicadores cresceram ou diminuíram proporcionalmente,
-    mesmo quando possuem unidades de medida diferentes.
-    </div>
-    """, unsafe_allow_html=True)
-
-
-# ============================================================
-# 10. ANÁLISE EXPLORATÓRIA
-# ============================================================
-
-elif pagina == "🔎 Análise Exploratória":
-
-    st.header("Análise Exploratória dos Dados")
 
     st.markdown(
-        "Explore a distribuição dos valores, a variação mensal, "
-        "a sazonalidade e a presença de observações extremas."
+        '<div class="page-subtitle">Paraná · DERAL · Análise histórica de janeiro de 2000 a dezembro de 2025</div>',
+        unsafe_allow_html=True
     )
 
-    opcoes = {}
+    st.markdown(
+        '<div class="hero">'
+        '<div class="hero-kicker">AGRODATA PR · INTELIGÊNCIA DE MERCADO</div>'
+        '<div class="hero-title">Entenda os movimentos do mercado da soja.</div>'
+        '<div class="hero-text">Acompanhe o preço estadual, explore indicadores relacionados e consulte os principais resultados das análises históricas.</div>'
+        '</div>',
+        unsafe_allow_html=True
+    )
 
-    for nome, coluna in colunas_indicadores_encontradas.items():
-        opcoes[nome] = coluna
+    preco_df = (
+        deral_filtrado.sort_values("data").copy()
+        if not deral_filtrado.empty
+        else pd.DataFrame()
+    )
 
-    if coluna_preco_nominal:
-        opcoes["Preço da soja nominal"] = coluna_preco_nominal
+    if not preco_df.empty:
+        preco_df["preco_soja_pr"] = pd.to_numeric(
+            preco_df[coluna_preco_selecionada],
+            errors="coerce"
+        )
 
-    if coluna_preco_real:
-        opcoes["Preço da soja corrigido pelo IPCA"] = coluna_preco_real
+        preco_df = preco_df.dropna(
+            subset=["preco_soja_pr"]
+        )
 
-    if not opcoes:
-        st.warning("Não foram identificadas colunas numéricas para análise.")
+    if not preco_df.empty:
+        ultimo = float(
+            preco_df["preco_soja_pr"].iloc[-1]
+        )
+
+        media_periodo = float(
+            preco_df["preco_soja_pr"].mean()
+        )
+
+        primeiro = float(
+            preco_df["preco_soja_pr"].iloc[0]
+        )
+
+        variacao_periodo = (
+            ((ultimo / primeiro) - 1) * 100
+            if primeiro else float("nan")
+        )
+
+        ultima_data = preco_df["data"].iloc[-1].strftime("%m/%Y")
+        total_obs = len(preco_df)
+
     else:
-        indicador_nome = st.selectbox(
-            "Selecione o indicador para explorar",
-            list(opcoes.keys())
+        ultimo = media_periodo = variacao_periodo = float("nan")
+        ultima_data = "Sem dados"
+        total_obs = 0
+
+    def formatar_brl(valor):
+        if pd.isna(valor):
+            return "—"
+
+        return "R$ " + f"{valor:,.2f}".replace(
+            ",", "X"
+        ).replace(".", ",").replace("X", ".")
+
+    def formatar_pct(valor):
+        if pd.isna(valor):
+            return "—"
+
+        return f"{valor:+.1f}%".replace(".", ",")
+
+    kpis = [
+        ("ÚLTIMO PREÇO", formatar_brl(ultimo), f"DERAL · {ultima_data}"),
+        ("PREÇO MÉDIO", formatar_brl(media_periodo), "Média no período selecionado"),
+        ("VARIAÇÃO DO PERÍODO", formatar_pct(variacao_periodo), "Primeiro ao último registro"),
+        ("OBSERVAÇÕES", f"{total_obs:,}".replace(",", "."), "Registros mensais disponíveis"),
+    ]
+
+    cols = st.columns(4)
+
+    for col, (label, value, note) in zip(cols, kpis):
+        with col:
+            st.markdown(
+                f'<div class="kpi-card">'
+                f'<div class="kpi-label">{label}</div>'
+                f'<div class="kpi-value">{value}</div>'
+                f'<div class="kpi-note">{note}</div>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+
+    st.write("")
+
+    if preco_df.empty:
+        st.warning(
+            "Não foram encontrados dados de preço do DERAL "
+            "para o período selecionado. Confira o arquivo "
+            "deral_preco_soja_pr.csv."
         )
 
-        indicador = opcoes[indicador_nome]
+    else:
+        left, right = st.columns([1.8, 1])
 
-        st.subheader(f"Comportamento de {indicador_nome}")
+        with left:
+            titulo_secao(
+                "Evolução do preço da soja no Paraná",
+                f"{rotulo_preco}. "
+                + (
+                    "Valores corrigidos pela inflação, com dezembro de 2025 como referência."
+                    if coluna_preco_selecionada == "preco_soja_real"
+                    else "Valores observados sem correção monetária pela inflação."
+                )
+            )
 
-        grafico_serie_temporal(
-            df_periodo,
-            indicador,
-            f"Evolução temporal — {indicador_nome}"
+            fig_preco = px.area(
+                preco_df,
+                x="data",
+                y="preco_soja_pr",
+                labels={
+                    "data": "Mês",
+                    "preco_soja_pr": rotulo_preco
+                }
+            )
+
+            fig_preco.update_traces(
+                line=dict(color="#286247", width=2.8),
+                fillcolor="rgba(62,128,91,0.13)",
+                hovertemplate="%{x|%b/%Y}<br>R$ %{y:,.2f}<extra></extra>"
+            )
+
+            fig_preco.update_layout(
+                title=None,
+                yaxis_tickprefix="R$ ",
+                xaxis_rangeslider_visible=True
+            )
+
+            st.plotly_chart(
+                preparar_figura(fig_preco, 420),
+                use_container_width=True
+            )
+
+        with right:
+            titulo_secao(
+                "Leitura rápida",
+                "Resumo calculado para o intervalo selecionado."
+            )
+
+            st.markdown(
+                f'<div class="insight-card">'
+                f'<div class="insight-label">Preço mais recente</div>'
+                f'<div class="insight-number">{formatar_brl(ultimo)}</div>'
+                f'<div class="insight-description">Último valor disponível na série estadual.</div>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+
+            if pd.notna(variacao_periodo):
+                direcao = (
+                    "aumento" if variacao_periodo > 0
+                    else ("redução" if variacao_periodo < 0 else "estabilidade")
+                )
+
+                texto_var = (
+                    f"No intervalo selecionado, o preço apresentou "
+                    f"{direcao} de {abs(variacao_periodo):.1f}%."
+                ).replace(".", ",")
+
+            else:
+                texto_var = (
+                    "Não há dados suficientes para calcular "
+                    "a variação do período."
+                )
+
+            st.markdown(
+                f'<div class="note-box">{texto_var} '
+                f'Essa comparação considera o primeiro e o último '
+                f'registro disponíveis e não representa uma previsão.</div>',
+                unsafe_allow_html=True
+            )
+
+            st.write("")
+
+            st.markdown(
+                '<div class="insight-card">'
+                '<div class="insight-label">Escopo da análise</div>'
+                '<div class="insight-number">2000–2025</div>'
+                '<div class="insight-description">Série histórica mensal utilizada no estudo.</div>'
+                '</div>',
+                unsafe_allow_html=True
+            )
+
+    # ---------------- MÉDIAS MÓVEIS E EXTREMOS ----------------
+    if not preco_df.empty:
+        st.markdown("---")
+
+        titulo_secao(
+            "Tendência do preço e pontos extremos",
+            "As médias móveis suavizam oscilações mensais. "
+            "Os extremos representam os maiores e menores valores "
+            "observados no período selecionado."
         )
 
-        c1, c2 = st.columns(2)
+        tendencia = preco_df[
+            ["data", "preco_soja_pr"]
+        ].copy()
 
-        with c1:
-            grafico_distribuicao(
-                df_periodo,
-                indicador,
-                f"Distribuição dos valores — {indicador_nome}"
+        tendencia = tendencia.dropna().sort_values("data")
+
+        tendencia["media_movel_3"] = (
+            tendencia["preco_soja_pr"]
+            .rolling(3, min_periods=3)
+            .mean()
+        )
+
+        tendencia["media_movel_12"] = (
+            tendencia["preco_soja_pr"]
+            .rolling(12, min_periods=12)
+            .mean()
+        )
+
+        fig_tendencia = go.Figure()
+
+        fig_tendencia.add_trace(go.Scatter(
+            x=tendencia["data"],
+            y=tendencia["preco_soja_pr"],
+            mode="lines",
+            name="Preço observado",
+            line=dict(color="#286247", width=1.8)
+        ))
+
+        fig_tendencia.add_trace(go.Scatter(
+            x=tendencia["data"],
+            y=tendencia["media_movel_3"],
+            mode="lines",
+            name="Média móvel de 3 meses",
+            line=dict(color="#D19A45", width=2)
+        ))
+
+        fig_tendencia.add_trace(go.Scatter(
+            x=tendencia["data"],
+            y=tendencia["media_movel_12"],
+            mode="lines",
+            name="Média móvel de 12 meses",
+            line=dict(color="#426C9B", width=2.5)
+        ))
+
+        maximo = tendencia.loc[
+            tendencia["preco_soja_pr"].idxmax()
+        ]
+
+        minimo = tendencia.loc[
+            tendencia["preco_soja_pr"].idxmin()
+        ]
+
+        fig_tendencia.add_trace(go.Scatter(
+            x=[maximo["data"], minimo["data"]],
+            y=[
+                maximo["preco_soja_pr"],
+                minimo["preco_soja_pr"]
+            ],
+            mode="markers+text",
+            name="Extremos observados",
+            marker=dict(
+                color="#C47762",
+                size=11,
+                symbol="diamond"
+            ),
+            text=["Máximo", "Mínimo"],
+            textposition="top center"
+        ))
+
+        fig_tendencia.update_layout(
+            title=None,
+            yaxis_title=rotulo_preco,
+            xaxis_title="Período"
+        )
+
+        st.plotly_chart(
+            preparar_figura(fig_tendencia, 420),
+            use_container_width=True,
+            key="moving_average_extremes"
+        )
+
+        col_max, col_min = st.columns(2)
+
+        with col_max:
+            st.metric(
+                "Maior preço do período",
+                formatar_brl(maximo["preco_soja_pr"]),
+                maximo["data"].strftime("%m/%Y")
             )
 
-        with c2:
-            grafico_boxplot(
-                df_periodo,
-                indicador,
-                f"Dispersão e possíveis valores extremos — {indicador_nome}"
+        with col_min:
+            st.metric(
+                "Menor preço do período",
+                formatar_brl(minimo["preco_soja_pr"]),
+                minimo["data"].strftime("%m/%Y")
             )
 
-        st.divider()
-        st.subheader("Estatísticas descritivas")
+    # Comportamento sazonal e variações recentes.
+    if not preco_df.empty:
+        st.markdown("---")
 
-        estatisticas = resultados["estatisticas"]
+        col_saz, col_var = st.columns(2)
 
-        if not estatisticas.empty:
-            coluna_indicador = encontrar_coluna(
-                estatisticas,
-                ["indicador", "variavel", "serie", "nome"]
+        with col_saz:
+            titulo_secao(
+                "Comportamento sazonal",
+                "Preço médio histórico por mês do ano, dentro do período selecionado."
             )
 
-            coluna_media = encontrar_coluna(
-                estatisticas, ["media", "mean"]
+            saz = preco_df.copy()
+            saz["numero_mes"] = saz["data"].dt.month
+
+            meses = [
+                "Jan", "Fev", "Mar", "Abr",
+                "Mai", "Jun", "Jul", "Ago",
+                "Set", "Out", "Nov", "Dez"
+            ]
+
+            perfil = saz.groupby(
+                "numero_mes",
+                as_index=False
+            )["preco_soja_pr"].mean()
+
+            perfil["Mês"] = perfil["numero_mes"].map(
+                lambda m: meses[int(m) - 1]
             )
 
-            coluna_mediana = encontrar_coluna(
-                estatisticas, ["mediana", "median"]
+            fig_saz = px.bar(
+                perfil,
+                x="Mês",
+                y="preco_soja_pr",
+                labels={
+                    "preco_soja_pr": rotulo_preco,
+                    "Mês": "Mês"
+                }
             )
 
-            coluna_desvio = encontrar_coluna(
-                estatisticas,
-                ["desvio_padrao", "desvio", "std"]
+            fig_saz.update_traces(
+                marker_color="#5B8967",
+                hovertemplate="%{x}<br>R$ %{y:,.2f}<extra></extra>"
             )
 
-            coluna_cv = encontrar_coluna(
-                estatisticas,
-                ["cv", "coeficiente_variacao"]
+            fig_saz.update_layout(
+                title=None,
+                yaxis_tickprefix="R$ "
             )
 
-            if coluna_indicador:
-                linha = estatisticas[
-                    estatisticas[coluna_indicador].astype(str)
-                    .str.contains(
-                        normalizar_coluna(indicador),
-                        case=False,
-                        na=False
-                    )
-                ]
+            st.plotly_chart(
+                preparar_figura(fig_saz, 320),
+                use_container_width=True
+            )
 
-                if linha.empty:
-                    linha = estatisticas[
-                        estatisticas[coluna_indicador].astype(str)
-                        .str.contains(
-                            indicador_nome.split()[0],
-                            case=False,
-                            na=False
-                        )
-                    ]
+        with col_var:
+            titulo_secao(
+                "Variação mensal do preço",
+                "Percentual de mudança em relação ao mês anterior."
+            )
 
-                if not linha.empty:
-                    linha = linha.iloc[0]
+            variacoes = preco_df[
+                ["data", "preco_soja_pr"]
+            ].copy()
 
-                    metricas = [
-                        ("Média", coluna_media),
-                        ("Mediana", coluna_mediana),
-                        ("Desvio padrão", coluna_desvio),
-                        ("Coeficiente de variação", coluna_cv)
-                    ]
+            variacoes["data"] = pd.to_datetime(
+                variacoes["data"],
+                errors="coerce"
+            )
 
-                    colunas_metricas = st.columns(4)
+            variacoes["preco_soja_pr"] = pd.to_numeric(
+                variacoes["preco_soja_pr"],
+                errors="coerce"
+            )
 
-                    for i, (rotulo, coluna) in enumerate(metricas):
-                        if coluna:
-                            valor = converter_valor_numerico(linha[coluna])
-                            colunas_metricas[i].metric(
-                                rotulo,
-                                formatar_numero(valor)
-                            )
-                else:
-                    st.info(
-                        "Não foi encontrada uma linha correspondente "
-                        "ao indicador selecionado no arquivo estatístico."
-                    )
+            variacoes = (
+                variacoes
+                .dropna(subset=["data", "preco_soja_pr"])
+                .sort_values("data")
+                .reset_index(drop=True)
+            )
+
+            variacoes["variacao_mensal"] = (
+                variacoes["preco_soja_pr"].pct_change() * 100
+            )
+
+            variacoes = variacoes.dropna(
+                subset=["variacao_mensal"]
+            ).tail(36)
+
+            if not variacoes.empty:
+                variacoes["Direção"] = variacoes[
+                    "variacao_mensal"
+                ].apply(
+                    lambda x: "Alta" if x >= 0 else "Queda"
+                )
+
+                fig_var = px.bar(
+                    variacoes,
+                    x="data",
+                    y="variacao_mensal",
+                    color="Direção",
+                    color_discrete_map={
+                        "Alta": "#4C805B",
+                        "Queda": "#C47762"
+                    },
+                    labels={
+                        "data": "Mês",
+                        "variacao_mensal": "Variação (%)"
+                    }
+                )
+
+                fig_var.update_layout(
+                    title=None,
+                    legend_title_text=""
+                )
+
+                fig_var.add_hline(
+                    y=0,
+                    line_color="#718078",
+                    line_width=1
+                )
+
+                st.plotly_chart(
+                    preparar_figura(fig_var, 320),
+                    use_container_width=True
+                )
+
             else:
                 st.info(
-                    "O arquivo de estatísticas não possui uma coluna "
-                    "de identificação reconhecida."
-                )
-        else:
-            aviso_sem_dados("estatísticas descritivas")
-
-    st.divider()
-    st.subheader("Variações mensais")
-
-    variacoes = resultados["variacoes"]
-
-    if not variacoes.empty:
-        coluna_indicador_var = encontrar_coluna(
-            variacoes, ["indicador", "variavel", "serie", "nome"]
-        )
-
-        coluna_variacao = encontrar_coluna(
-            variacoes,
-            [
-                "variacao_percentual", "variacao_pct",
-                "variacao_mensal_pct", "variacao"
-            ]
-        )
-
-        if coluna_variacao:
-            if coluna_indicador_var:
-                indicador_var = st.selectbox(
-                    "Indicador das variações",
-                    sorted(
-                        variacoes[coluna_indicador_var]
-                        .dropna().astype(str).unique()
-                    ),
-                    key="indicador_variacoes"
+                    "Não há observações suficientes para "
+                    "calcular as variações mensais."
                 )
 
-                dados_var = variacoes[
-                    variacoes[coluna_indicador_var].astype(str)
-                    == indicador_var
-                ].copy()
-            else:
-                dados_var = variacoes.copy()
+    # Indicadores de mercado apresentados em índice-base 100.
+    st.markdown("---")
 
-            coluna_data_var = encontrar_coluna(
-                dados_var, ["data", "periodo", "mes"]
+    titulo_secao(
+        "Indicadores relacionados ao mercado",
+        "Séries reescalonadas para base 100 no primeiro mês disponível. "
+        "O índice permite comparar movimentos, não valores absolutos. "
+        "A base consolidada disponível para esses indicadores começa em dez/2000."
+    )
+
+    base_ind_raw = carregar_dados_principais()
+    base_ind_raw, data_ind = normalizar_data(base_ind_raw)
+
+    if (
+        not base_ind_raw.empty
+        and data_ind is None
+        and "data" in base_ind_raw.columns
+    ):
+        base_ind_raw["data"] = pd.to_datetime(
+            base_ind_raw["data"],
+            errors="coerce"
+        )
+
+        data_ind = (
+            "data"
+            if base_ind_raw["data"].notna().any()
+            else None
+        )
+
+    if not base_ind_raw.empty and data_ind:
+        base_ind_raw[data_ind] = pd.to_datetime(
+            base_ind_raw[data_ind],
+            errors="coerce"
+        )
+
+        base_ind_raw = base_ind_raw.dropna(
+            subset=[data_ind]
+        )
+
+        base_ind_raw = base_ind_raw[
+            (base_ind_raw[data_ind].dt.date >= start_date)
+            & (base_ind_raw[data_ind].dt.date <= end_date)
+        ].sort_values(data_ind)
+
+        if not base_ind_raw.empty:
+            st.caption(
+                f"Disponibilidade da base consolidada de indicadores "
+                f"no intervalo: {base_ind_raw[data_ind].min():%m/%Y} "
+                f"a {base_ind_raw[data_ind].max():%m/%Y} "
+                f"({len(base_ind_raw)} registros). "
+                "A série DERAL é apresentada separadamente e possui "
+                "cobertura histórica própria."
             )
 
-            if coluna_data_var:
-                dados_var = normalizar_data(dados_var)
+        if not deral_filtrado.empty:
+            st.caption(
+                f"Cobertura do preço DERAL no período selecionado: "
+                f"{deral_filtrado['data'].min():%m/%Y} a "
+                f"{deral_filtrado['data'].max():%m/%Y} "
+                f"({deral_filtrado['data'].nunique()} registros mensais). "
+                "A quantidade de observações pode diferir da base "
+                "consolidada porque as séries possuem disponibilidades "
+                "históricas distintas. Não foram criados registros "
+                "para completar meses sem dados."
+            )
 
-                if "data" in dados_var.columns:
+        candidatos = {
+            "Preço internacional da soja": [
+                "soja_internacional_usd_t",
+                "soja_internacional_usd"
+            ],
+            "Câmbio": [
+                "cambio_usd_brl",
+                "cambio_brl_usd",
+                "cambio",
+                "dolar"
+            ],
+            "Petróleo Brent": [
+                "brent_usd_barril",
+                "brent",
+                "petroleo",
+                "petróleo"
+            ],
+            "Fertilizantes": [
+                "fertilizantes_indice",
+                "fertilizantes",
+                "indice_fertilizantes",
+                "índice_fertilizantes"
+            ],
+        }
+
+        def converter_indicador(serie):
+            texto = (
+                serie.astype(str)
+                .str.strip()
+                .str.replace(" ", "", regex=False)
+            )
+
+            tem_virgula = texto.str.contains(
+                ",",
+                regex=False
+            ).any()
+
+            tem_ponto = texto.str.contains(
+                r"\.",
+                regex=True
+            ).any()
+
+            if tem_virgula and tem_ponto:
+                texto = (
+                    texto.str.replace(".", "", regex=False)
+                    .str.replace(",", ".", regex=False)
+                )
+
+            elif tem_virgula:
+                texto = texto.str.replace(
+                    ",", ".", regex=False
+                )
+
+            return pd.to_numeric(
+                texto,
+                errors="coerce"
+            )
+
+        colunas_norm = {
+            str(c).strip().lower(): c
+            for c in base_ind_raw.columns
+        }
+
+        series_ind = {}
+
+        for nome, aliases in candidatos.items():
+            col_real = next(
+                (
+                    colunas_norm[a.lower()]
+                    for a in aliases
+                    if a.lower() in colunas_norm
+                ),
+                None
+            )
+
+            if col_real is None:
+                continue
+
+            valores = converter_indicador(
+                base_ind_raw[col_real]
+            )
+
+            valores = valores.replace(
+                [float("inf"), float("-inf")],
+                pd.NA
+            )
+
+            if valores.notna().sum() >= 2:
+                series_ind[nome] = valores
+
+        if series_ind:
+            base_plot = pd.DataFrame({
+                data_ind: base_ind_raw[data_ind]
+            })
+
+            for nome, valores in series_ind.items():
+                primeira = valores.dropna().iloc[0]
+
+                if primeira != 0:
+                    base_plot[nome] = (
+                        valores / primeira
+                    ) * 100
+
+            plot_cols = [
+                c for c in series_ind
+                if c in base_plot.columns
+            ]
+
+            if plot_cols:
+                long_ind = base_plot[
+                    [data_ind] + plot_cols
+                ].melt(
+                    id_vars=data_ind,
+                    var_name="Indicador",
+                    value_name="Índice (base 100)"
+                ).dropna()
+
+                fig_ind = px.line(
+                    long_ind,
+                    x=data_ind,
+                    y="Índice (base 100)",
+                    color="Indicador",
+                    labels={
+                        data_ind: "Período",
+                        "Índice (base 100)": "Índice (base 100)"
+                    }
+                )
+
+                fig_ind.update_traces(
+                    line=dict(width=2.3)
+                )
+
+                fig_ind.add_hline(
+                    y=100,
+                    line_dash="dot",
+                    line_color="#000000"
+                )
+
+                st.plotly_chart(
+                    preparar_figura(fig_ind, 350),
+                    use_container_width=True
+                )
+
+        else:
+            st.warning(
+                "Os indicadores foram carregados, mas não possuem "
+                "valores numéricos suficientes para gerar o gráfico."
+            )
+
+    else:
+        st.error(
+            "Não foi possível carregar a base consolidada de "
+            "indicadores ou identificar a coluna de datas."
+        )
+
+    # Destaques dos resultados do estudo completo.
+    st.markdown("---")
+
+    titulo_secao(
+        "Principais achados do estudo",
+        "Resultados estatísticos calculados para a série histórica "
+        "completa de 2000 a 2025."
+    )
+
+    achado1, achado2, achado3 = st.columns(3)
+
+    with achado1:
+        st.markdown(
+            '<div class="insight-card">'
+            '<div class="insight-label">Preço internacional da soja</div>'
+            '<div class="insight-number">ρ = 0,49</div>'
+            '<div class="insight-description">Associação positiva com a variação do preço estadual, identificada na análise contemporânea.</div>'
+            '</div>',
+            unsafe_allow_html=True
+        )
+
+    with achado2:
+        st.markdown(
+            '<div class="insight-card">'
+            '<div class="insight-label">Câmbio USD/BRL</div>'
+            '<div class="insight-number">ρ = 0,32</div>'
+            '<div class="insight-description">Associação positiva com a variação do preço estadual, também na defasagem zero.</div>'
+            '</div>',
+            unsafe_allow_html=True
+        )
+
+    with achado3:
+        st.markdown(
+            '<div class="insight-card">'
+            '<div class="insight-label">Interpretação</div>'
+            '<div class="insight-number">Exploratória</div>'
+            '<div class="insight-description">Correlação não indica causalidade. Os resultados apoiam a análise, não garantem movimentos futuros.</div>'
+            '</div>',
+            unsafe_allow_html=True
+        )
+
+    st.markdown(
+        '<div class="footer-line">Painel acadêmico desenvolvido para análise histórica do mercado da soja no Paraná · '
+        'Dados e resultados do projeto · Atualização conforme os arquivos tratados</div>',
+        unsafe_allow_html=True
+    )
+
+
+# ====================== EXPLORATÓRIA ===========================
+elif pagina == "📊 Análise Exploratória":
+
+    st.markdown(
+        '<div class="page-title">Análise Exploratória</div>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        '<div class="page-subtitle">Estatísticas descritivas, padrões sazonais e variações mensais.</div>',
+        unsafe_allow_html=True
+    )
+
+    st.info(
+        "Os resultados estatísticos desta seção são pré-calculados "
+        "para a série completa do estudo (jan/2000 a dez/2025). "
+        "O filtro de período não recalcula essas estatísticas; ele "
+        "é aplicado aos gráficos temporais da Visão Geral e às séries "
+        "mensais de sinais e previsões."
+    )
+
+    tab1, tab2, tab3 = st.tabs([
+        "Estatísticas",
+        "Sazonalidade",
+        "Variações"
+    ])
+
+    with tab1:
+        stats = carregar_csv_flexivel(
+            "07_estatisticas_descritivas_niveis.csv"
+        )
+
+        titulo_secao(
+            "Resumo estatístico",
+            "Escolha uma medida para comparar os indicadores. "
+            "Cada medida é exibida separadamente para evitar "
+            "misturar escalas incompatíveis."
+        )
+
+        if not stats.empty and "variavel" in stats.columns:
+            medidas = [
+                c for c in [
+                    "mean", "50%", "std", "min",
+                    "25%", "75%", "max",
+                    "coef_variacao_pct"
+                ]
+                if c in stats.columns
+            ]
+
+            medida_labels = {
+                "mean": "Média",
+                "50%": "Mediana",
+                "std": "Desvio padrão",
+                "min": "Mínimo",
+                "25%": "1º quartil (25%)",
+                "75%": "3º quartil (75%)",
+                "max": "Máximo",
+                "coef_variacao_pct": "Coeficiente de variação (%)"
+            }
+
+            if medidas:
+                escolha = st.selectbox(
+                    "Medida estatística",
+                    medidas,
+                    format_func=lambda c: medida_labels.get(c, c)
+                )
+
+                plot = stats[
+                    ["variavel", escolha]
+                ].copy()
+
+                plot[escolha] = pd.to_numeric(
+                    plot[escolha],
+                    errors="coerce"
+                )
+
+                plot = plot.dropna(
+                    subset=[escolha]
+                ).sort_values(escolha)
+
+                plot["Indicador"] = plot[
+                    "variavel"
+                ].map(nome_amigavel)
+
+                fig = px.bar(
+                    plot,
+                    x=escolha,
+                    y="Indicador",
+                    orientation="h",
+                    text=plot[escolha].map(
+                        lambda v: f"{v:,.2f}"
+                    ),
+                    labels={
+                        escolha: medida_labels.get(escolha, escolha),
+                        "Indicador": "Indicador"
+                    },
+                    color_discrete_sequence=["#286247"]
+                )
+
+                fig.update_traces(
+                    textposition="outside",
+                    cliponaxis=False
+                )
+
+                fig.update_layout(
+                    title=None,
+                    margin=dict(l=10, r=90, t=20, b=30)
+                )
+
+                st.plotly_chart(
+                    preparar_figura(
+                        fig,
+                        max(430, 36 * len(plot))
+                    ),
+                    use_container_width=True,
+                    key="expl_stats_measure"
+                )
+
+            else:
+                st.info(
+                    "O arquivo não possui as medidas estatísticas esperadas."
+                )
+
+        else:
+            st.info(
+                "Arquivo de estatísticas não disponível "
+                "ou sem estrutura esperada."
+            )
+
+    with tab2:
+        saz = carregar_csv_flexivel(
+            "07_sazonalidade_mensal.csv"
+        )
+
+        titulo_secao(
+            "Padrão sazonal médio por mês",
+            "Perfil mensal calculado no conjunto histórico do arquivo sazonal "
+            "(não é uma série por ano)."
+        )
+
+        if not saz.empty and "mes" in saz.columns:
+            saz["mes"] = pd.to_numeric(
+                saz["mes"],
+                errors="coerce"
+            )
+
+            meses_pt = {
+                1: "Jan", 2: "Fev", 3: "Mar", 4: "Abr",
+                5: "Mai", 6: "Jun", 7: "Jul", 8: "Ago",
+                9: "Set", 10: "Out", 11: "Nov", 12: "Dez"
+            }
+
+            saz["Mês"] = saz["mes"].map(meses_pt)
+
+            col_opts = {
+                "preco_soja_pr_media": "Preço nominal médio (R$/saca)",
+                "preco_soja_pr_mediana": "Preço nominal mediano (R$/saca)",
+                "preco_soja_real_media": "Preço real médio",
+                "preco_soja_real_mediana": "Preço real mediano",
+                "variacao_preco_media_pct": "Variação média (%)",
+                "variacao_preco_mediana_pct": "Variação mediana (%)"
+            }
+
+            opcoes_sazonais = [
+                c for c in col_opts
+                if c in saz.columns
+            ]
+
+            if opcoes_sazonais:
+                saz_col = st.selectbox(
+                    "Série sazonal",
+                    opcoes_sazonais,
+                    format_func=lambda c: col_opts[c]
+                )
+
+                saz_plot = saz.dropna(
+                    subset=[saz_col]
+                ).sort_values("mes")
+
+                if not saz_plot.empty:
                     fig = px.bar(
-                        dados_var,
-                        x="data",
-                        y=coluna_variacao,
-                        title="Variação percentual mensal",
+                        saz_plot,
+                        x="Mês",
+                        y=saz_col,
+                        text=saz_plot[saz_col].map(
+                            lambda v: f"{v:,.2f}"
+                        ),
                         labels={
-                            "data": "Período",
-                            coluna_variacao: "Variação (%)"
+                            saz_col: col_opts[saz_col],
+                            "Mês": "Mês"
+                        },
+                        color_discrete_sequence=["#286247"]
+                    )
+
+                    fig.update_traces(
+                        textposition="outside",
+                        cliponaxis=False
+                    )
+
+                    if "variacao" in saz_col:
+                        fig.add_hline(
+                            y=0,
+                            line_color="#111",
+                            line_dash="dash"
+                        )
+
+                    fig.update_layout(
+                        title=None,
+                        margin=dict(t=20, b=30)
+                    )
+
+                    st.plotly_chart(
+                        preparar_figura(fig, 430),
+                        use_container_width=True,
+                        key="expl_seasonal_file"
+                    )
+
+                else:
+                    st.info(
+                        "A coluna escolhida não possui valores para exibir."
+                    )
+
+            else:
+                st.info(
+                    "O arquivo sazonal não possui as colunas de medidas esperadas."
+                )
+
+        else:
+            st.info(
+                "Arquivo sazonal não encontrado ou não contém a coluna 'mes'."
+            )
+
+    with tab3:
+        vari = carregar_csv_flexivel(
+            "07_estatisticas_variacoes_mensais.csv"
+        )
+
+        titulo_secao(
+            "Variações mensais",
+            "Distribuição das variações. A escala usa percentis "
+            "para não deixar extremos isolados ocultarem os demais indicadores."
+        )
+
+        if not vari.empty and "variavel" in vari.columns:
+            needed = [
+                c for c in ["variavel", "5%", "50%", "95%"]
+                if c in vari.columns
+            ]
+
+            if len(needed) == 4:
+                vplot = vari[needed].copy()
+
+                for c in needed[1:]:
+                    vplot[c] = pd.to_numeric(
+                        vplot[c],
+                        errors="coerce"
+                    )
+
+                vplot = vplot.dropna(
+                    subset=["5%", "50%", "95%"]
+                )
+
+                vplot["Indicador"] = vplot[
+                    "variavel"
+                ].map(nome_amigavel)
+
+                fig = go.Figure()
+
+                for _, row in vplot.iterrows():
+                    fig.add_trace(go.Scatter(
+                        x=[row["5%"], row["95%"]],
+                        y=[row["Indicador"]] * 2,
+                        mode="lines",
+                        line=dict(
+                            color="#8EAA96",
+                            width=5
+                        ),
+                        showlegend=False,
+                        hovertemplate="Faixa 5–95%<extra></extra>"
+                    ))
+
+                    fig.add_trace(go.Scatter(
+                        x=[row["50%"]],
+                        y=[row["Indicador"]],
+                        mode="markers+text",
+                        marker=dict(
+                            color="#204E37",
+                            size=10
+                        ),
+                        text=[
+                            f"Mediana {row['50%']:.2f}%"
+                        ],
+                        textposition="middle right",
+                        showlegend=False,
+                        hovertemplate="Mediana: %{x:.2f}%<extra></extra>"
+                    ))
+
+                fig.add_vline(
+                    x=0,
+                    line_color="#111",
+                    line_dash="dash"
+                )
+
+                fig.update_layout(
+                    title=None,
+                    xaxis_title=(
+                        "Variação mensal (%) — "
+                        "faixa entre percentis 5 e 95"
+                    ),
+                    yaxis_title="Indicador",
+                    margin=dict(
+                        l=20,
+                        r=100,
+                        t=25,
+                        b=45
+                    )
+                )
+
+                st.plotly_chart(
+                    preparar_figura(fig, 460),
+                    use_container_width=True,
+                    key="expl_variations_range"
+                )
+
+                st.caption(
+                    "A faixa representa o intervalo entre os percentis "
+                    "5 e 95; o ponto mostra a mediana. Extremos fora "
+                    "da faixa não são ocultados dos cálculos, apenas "
+                    "não são usados para definir a escala visual."
+                )
+
+            else:
+                st.info(
+                    "O arquivo não contém todas as colunas de percentis esperadas."
+                )
+
+        else:
+            st.info(
+                "Arquivo de variações não encontrado "
+                "ou sem estrutura esperada."
+            )
+
+
+# ====================== CORRELAÇÕES/LAGS =======================
+elif pagina == "🔗 Correlações e Lags":
+
+    st.markdown(
+        '<div class="page-title">Correlações e Defasagens</div>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        '<div class="page-subtitle">Direção e intensidade das relações estatísticas. Correlação não significa causalidade.</div>',
+        unsafe_allow_html=True
+    )
+
+    st.info(
+        "As correlações e defasagens são resultados pré-calculados "
+        "para a série completa do estudo. O filtro de período não "
+        "recalcula os coeficientes."
+    )
+
+    tabs_corr = st.tabs([
+        "Correlação contemporânea",
+        "Variações mensais",
+        "Melhores defasagens",
+        "Lags 0–6 meses"
+    ])
+
+    with tabs_corr[0]:
+        data = carregar_csv_flexivel(
+            "08_correlacoes_niveis.csv"
+        )
+
+        titulo_secao(
+            "Correlação contemporânea entre níveis",
+            "As barras comparam Pearson e Spearman entre os níveis "
+            "dos indicadores e o preço estadual. Séries em nível "
+            "podem compartilhar tendências; interprete também "
+            "as correlações das variações mensais."
+        )
+
+        if (
+            not data.empty
+            and {
+                "variavel_explicativa",
+                "pearson_r",
+                "spearman_rho"
+            }.issubset(data.columns)
+        ):
+            cdata = data.copy()
+
+            cdata["pearson_r"] = pd.to_numeric(
+                cdata["pearson_r"],
+                errors="coerce"
+            )
+
+            cdata["spearman_rho"] = pd.to_numeric(
+                cdata["spearman_rho"],
+                errors="coerce"
+            )
+
+            cdata = cdata.dropna(
+                subset=["pearson_r", "spearman_rho"]
+            )
+
+            cdata["Indicador"] = cdata[
+                "variavel_explicativa"
+            ].map(nome_amigavel)
+
+            longc = cdata.melt(
+                id_vars="Indicador",
+                value_vars=["pearson_r", "spearman_rho"],
+                var_name="Método",
+                value_name="Correlação"
+            )
+
+            longc["Método"] = longc["Método"].map({
+                "pearson_r": "Pearson",
+                "spearman_rho": "Spearman"
+            })
+
+            fig = px.bar(
+                longc,
+                x="Correlação",
+                y="Indicador",
+                color="Método",
+                barmode="group",
+                orientation="h",
+                text=longc["Correlação"].map(
+                    lambda v: f"{v:+.2f}"
+                ),
+                color_discrete_sequence=[
+                    "#79A88B",
+                    "#24563B"
+                ],
+                range_x=[-1, 1]
+            )
+
+            fig.update_traces(
+                textposition="outside",
+                cliponaxis=False
+            )
+
+            fig.add_vline(
+                x=0,
+                line_color="#111",
+                line_dash="dash"
+            )
+
+            fig.update_layout(
+                title=None,
+                margin=dict(
+                    l=15,
+                    r=45,
+                    t=20,
+                    b=30
+                ),
+                legend_title=None
+            )
+
+            st.plotly_chart(
+                preparar_figura(fig, 460),
+                use_container_width=True,
+                key="correlations_levels_bars"
+            )
+
+        else:
+            st.info(
+                "Arquivo de correlação entre níveis ausente "
+                "ou com estrutura inesperada."
+            )
+
+    with tabs_corr[1]:
+        data_var = carregar_csv_flexivel(
+            "08_correlacoes_variacoes_mensais.csv"
+        )
+
+        titulo_secao(
+            "Correlação entre variações mensais",
+            "Compara as mudanças mensais dos indicadores com a "
+            "variação do preço estadual. Resultados calculados "
+            "para o período completo do estudo."
+        )
+
+        if (
+            not data_var.empty
+            and {
+                "variavel_explicativa",
+                "pearson_r",
+                "spearman_rho"
+            }.issubset(data_var.columns)
+        ):
+            plot_var = data_var.copy()
+
+            for c in ["pearson_r", "spearman_rho"]:
+                plot_var[c] = pd.to_numeric(
+                    plot_var[c],
+                    errors="coerce"
+                )
+
+            plot_var = plot_var.dropna(
+                subset=["pearson_r", "spearman_rho"]
+            )
+
+            plot_var["Indicador"] = plot_var[
+                "variavel_explicativa"
+            ].map(nome_amigavel)
+
+            long_var = plot_var.melt(
+                id_vars="Indicador",
+                value_vars=["pearson_r", "spearman_rho"],
+                var_name="Método",
+                value_name="Correlação"
+            )
+
+            long_var["Método"] = long_var["Método"].map({
+                "pearson_r": "Pearson",
+                "spearman_rho": "Spearman"
+            })
+
+            fig_var = px.bar(
+                long_var,
+                x="Correlação",
+                y="Indicador",
+                color="Método",
+                barmode="group",
+                orientation="h",
+                range_x=[-1, 1],
+                color_discrete_sequence=[
+                    "#79A88B",
+                    "#24563B"
+                ]
+            )
+
+            fig_var.add_vline(
+                x=0,
+                line_color="#111",
+                line_dash="dash"
+            )
+
+            fig_var.update_layout(
+                title=None,
+                legend_title=None,
+                margin=dict(
+                    l=15,
+                    r=35,
+                    t=20,
+                    b=30
+                )
+            )
+
+            st.plotly_chart(
+                preparar_figura(fig_var, 440),
+                use_container_width=True,
+                key="correlations_monthly_changes"
+            )
+
+            st.caption(
+                "Os coeficientes representam associação entre "
+                "variações mensais; não demonstram causalidade."
+            )
+
+            # Significância estatística: utiliza somente colunas
+            # de p-valores realmente existentes no arquivo.
+            colunas_p = [
+                c for c in plot_var.columns
+                if (
+                    "p" in c.lower()
+                    and any(
+                        termo in c.lower()
+                        for termo in [
+                            "pearson",
+                            "spearman",
+                            "fdr"
+                        ]
+                    )
+                    and pd.api.types.is_numeric_dtype(
+                        pd.to_numeric(
+                            plot_var[c],
+                            errors="coerce"
+                        )
+                    )
+                )
+            ]
+
+            if colunas_p:
+                significancia = plot_var[
+                    ["Indicador"] + colunas_p
+                ].copy()
+
+                significancia_long = significancia.melt(
+                    id_vars="Indicador",
+                    var_name="Teste",
+                    value_name="p-valor"
+                )
+
+                significancia_long["p-valor"] = pd.to_numeric(
+                    significancia_long["p-valor"],
+                    errors="coerce"
+                )
+
+                significancia_long = significancia_long.dropna(
+                    subset=["p-valor"]
+                )
+
+                if not significancia_long.empty:
+                    significancia_long["Resultado"] = (
+                        significancia_long["p-valor"].apply(
+                            lambda p: (
+                                "Significativo (p < 0,05)"
+                                if p < 0.05
+                                else "Não significativo (p ≥ 0,05)"
+                            )
+                        )
+                    )
+
+                    fig_p = px.bar(
+                        significancia_long,
+                        x="p-valor",
+                        y="Indicador",
+                        color="Resultado",
+                        orientation="h",
+                        barmode="group",
+                        color_discrete_map={
+                            "Significativo (p < 0,05)": "#4C805B",
+                            "Não significativo (p ≥ 0,05)": "#C47762"
+                        },
+                        labels={
+                            "p-valor": "p-valor",
+                            "Indicador": "Indicador"
                         }
                     )
 
-                    fig.add_hline(y=0, line_dash="dash")
-                    mostrar_grafico(fig)
-                else:
-                    aviso_sem_dados("variações mensais")
+                    fig_p.add_vline(
+                        x=0.05,
+                        line_dash="dash",
+                        line_color="#111",
+                        annotation_text="Referência 0,05"
+                    )
+
+                    fig_p.update_layout(
+                        title=None,
+                        legend_title=None
+                    )
+
+                    st.plotly_chart(
+                        preparar_figura(fig_p, 380),
+                        use_container_width=True,
+                        key="correlation_significance_chart"
+                    )
+
+                    st.caption(
+                        "A interpretação considera os p-valores "
+                        "disponíveis no arquivo. Quando houver "
+                        "correção FDR, ela deve ser considerada "
+                        "na avaliação de múltiplas comparações."
+                    )
+
             else:
-                grafico_colunas(
-                    dados_var,
-                    dados_var.columns[0],
-                    coluna_variacao,
-                    "Variação mensal"
+                st.info(
+                    "O arquivo não apresenta colunas de p-valores "
+                    "identificáveis. Os coeficientes são exibidos, "
+                    "mas não é possível classificar a significância "
+                    "sem os resultados correspondentes."
                 )
-        else:
-            aviso_sem_dados("variações mensais")
-    else:
-        aviso_sem_dados("variações mensais")
 
-    st.markdown("""
-    <div class="caixa-info">
-    <b>Interpretação:</b> a média representa o comportamento central
-    dos valores; a mediana reduz a influência de observações extremas;
-    o desvio padrão indica dispersão; e o coeficiente de variação
-    permite avaliar a variabilidade relativa da série.
-    </div>
-    """, unsafe_allow_html=True)
-
-
-# ============================================================
-# 11. CORRELAÇÕES E DEFASAGENS
-# ============================================================
-
-elif pagina == "🔗 Correlações e Defasagens":
-
-    st.header("Correlações e Defasagens Temporais")
-
-    st.markdown(
-        "Esta seção investiga a relação entre o preço da soja e os "
-        "indicadores de mercado, incluindo a possibilidade de que "
-        "determinados movimentos ocorram antes de alterações no preço."
-    )
-
-    base_corr = resultados["correlacoes_niveis"]
-
-    st.subheader("Correlação entre os indicadores")
-
-    if not base_corr.empty:
-        coluna_indicador = encontrar_coluna(
-            base_corr, ["indicador", "variavel", "serie", "nome"]
-        )
-
-        coluna_corr = encontrar_coluna(
-            base_corr,
-            ["spearman", "correlacao_spearman", "correlacao", "rho"]
-        )
-
-        if coluna_indicador and coluna_corr:
-            dados_corr = base_corr.copy()
-            dados_corr[coluna_corr] = pd.to_numeric(
-                dados_corr[coluna_corr], errors="coerce"
-            )
-            dados_corr = dados_corr.dropna(subset=[coluna_corr])
-
-            fig = px.bar(
-                dados_corr.sort_values(coluna_corr),
-                x=coluna_corr,
-                y=coluna_indicador,
-                orientation="h",
-                color=coluna_corr,
-                color_continuous_scale="RdBu",
-                range_color=[-1, 1],
-                title="Força e direção da correlação de Spearman",
-                labels={
-                    coluna_corr: "Correlação de Spearman",
-                    coluna_indicador: "Indicador"
-                },
-                text_auto=".2f"
-            )
-
-            fig.add_vline(x=0, line_dash="dash", line_color="black")
-            fig.add_vline(x=0.5, line_dash="dot", line_color="gray")
-            fig.add_vline(x=-0.5, line_dash="dot", line_color="gray")
-
-            mostrar_grafico(fig)
-        else:
-            # Quando o arquivo já estiver em formato de matriz.
-            colunas = colunas_numericas(base_corr)
-
-            if len(colunas) >= 2:
-                grafico_matriz_correlacao(
-                    base_corr,
-                    colunas,
-                    "Matriz de correlação"
-                )
-            else:
-                aviso_sem_dados("correlações")
-    else:
-        # Calcula uma matriz exploratória diretamente da base.
-        colunas = list(colunas_indicadores_encontradas.values())
-
-        if coluna_preco_nominal:
-            colunas.insert(0, coluna_preco_nominal)
-
-        grafico_matriz_correlacao(
-            df_periodo,
-            colunas,
-            "Matriz exploratória de correlação de Spearman"
-        )
-
-    st.divider()
-    st.subheader("Correlação das variações mensais")
-
-    base_variacoes_corr = resultados["correlacoes_variacoes"]
-
-    if not base_variacoes_corr.empty:
-        coluna_indicador = encontrar_coluna(
-            base_variacoes_corr,
-            ["indicador", "variavel", "serie", "nome"]
-        )
-
-        coluna_corr = encontrar_coluna(
-            base_variacoes_corr,
-            ["spearman", "correlacao_spearman", "correlacao", "rho"]
-        )
-
-        if coluna_indicador and coluna_corr:
-            grafico_colunas(
-                base_variacoes_corr,
-                coluna_indicador,
-                coluna_corr,
-                "Correlação entre as variações mensais"
-            )
         else:
             st.info(
-                "Não foi possível identificar automaticamente "
-                "as colunas do arquivo de correlações das variações."
+                "Arquivo de correlações das variações mensais "
+                "ausente ou com estrutura inesperada."
             )
-    else:
-        aviso_sem_dados("correlações das variações")
 
-    st.divider()
-    st.subheader("Análise das defasagens de 0 a 6 meses")
-
-    base_lags = resultados["lags"]
-
-    if not base_lags.empty:
-        coluna_lag = encontrar_coluna(
-            base_lags, ["lag", "defasagem", "meses", "defasagem_meses"]
+    with tabs_corr[2]:
+        best = carregar_csv_flexivel(
+            "08_melhores_defasagens_spearman.csv"
         )
 
-        coluna_corr = encontrar_coluna(
-            base_lags,
-            ["spearman", "correlacao_spearman", "correlacao", "rho"]
+        titulo_secao(
+            "Melhor lag por indicador",
+            "Mostra a correlação Spearman selecionada e a "
+            "defasagem correspondente. A linha zero ajuda a "
+            "separar relações positivas e negativas."
         )
 
-        coluna_indicador = encontrar_coluna(
-            base_lags,
-            ["indicador", "variavel", "serie", "nome"]
-        )
-
-        if coluna_lag and coluna_corr:
-            base_plot = base_lags.copy()
-            base_plot[coluna_lag] = pd.to_numeric(
-                base_plot[coluna_lag], errors="coerce"
-            )
-            base_plot[coluna_corr] = pd.to_numeric(
-                base_plot[coluna_corr], errors="coerce"
-            )
-            base_plot = base_plot.dropna(
-                subset=[coluna_lag, coluna_corr]
+        if (
+            not best.empty
+            and {
+                "variavel_explicativa",
+                "spearman_rho",
+                "defasagem_meses"
+            }.issubset(best.columns)
+        ):
+            best["spearman_rho"] = pd.to_numeric(
+                best["spearman_rho"],
+                errors="coerce"
             )
 
-            if coluna_indicador:
-                opcoes_lag = sorted(
-                    base_plot[coluna_indicador]
-                    .dropna().astype(str).unique()
-                )
+            best["defasagem_meses"] = pd.to_numeric(
+                best["defasagem_meses"],
+                errors="coerce"
+            )
 
-                escolhido = st.selectbox(
-                    "Indicador para visualizar as defasagens",
-                    opcoes_lag
-                )
+            best = best.dropna(
+                subset=["spearman_rho", "defasagem_meses"]
+            ).sort_values("spearman_rho")
 
-                base_plot = base_plot[
-                    base_plot[coluna_indicador].astype(str) == escolhido
-                ]
+            best["Indicador"] = best[
+                "variavel_explicativa"
+            ].map(nome_amigavel)
 
-            fig = px.line(
-                base_plot.sort_values(coluna_lag),
-                x=coluna_lag,
-                y=coluna_corr,
-                markers=True,
-                title="Correlação por defasagem temporal",
+            fig = px.bar(
+                best,
+                x="spearman_rho",
+                y="Indicador",
+                orientation="h",
+                color="spearman_rho",
+                color_continuous_scale=[
+                    "#B85C4A",
+                    "#F7F5EA",
+                    "#347653"
+                ],
+                range_color=[-1, 1],
+                text=best.apply(
+                    lambda r: (
+                        f"ρ={r.spearman_rho:.3f} · "
+                        f"lag {int(r.defasagem_meses)}m"
+                    ),
+                    axis=1
+                ),
                 labels={
-                    coluna_lag: "Defasagem (meses)",
-                    coluna_corr: "Correlação de Spearman"
+                    "spearman_rho": "Spearman ρ",
+                    "Indicador": "Indicador"
                 }
             )
 
             fig.update_traces(
-                line=dict(color=CORES["azul"], width=3),
-                marker=dict(size=10)
+                textposition="outside",
+                cliponaxis=False
             )
 
-            fig.add_hline(y=0, line_dash="dash")
-            fig.update_xaxes(dtick=1)
-
-            mostrar_grafico(fig)
-        else:
-            aviso_sem_dados("defasagens")
-    else:
-        aviso_sem_dados("defasagens de 0 a 6 meses")
-
-    st.divider()
-    st.subheader("Melhores defasagens identificadas")
-
-    melhores = resultados["melhores_lags"]
-
-    if not melhores.empty:
-        coluna_indicador = encontrar_coluna(
-            melhores, ["indicador", "variavel", "serie", "nome"]
-        )
-
-        coluna_lag = encontrar_coluna(
-            melhores,
-            ["melhor_lag", "lag", "defasagem", "defasagem_meses"]
-        )
-
-        coluna_corr = encontrar_coluna(
-            melhores,
-            ["spearman", "correlacao_spearman", "correlacao", "rho"]
-        )
-
-        if coluna_indicador and coluna_lag:
-            fig = px.bar(
-                melhores,
-                x=coluna_indicador,
-                y=coluna_lag,
-                color=coluna_corr if coluna_corr else coluna_lag,
-                text=coluna_lag,
-                title="Defasagem com melhor resultado por indicador",
-                labels={
-                    coluna_indicador: "Indicador",
-                    coluna_lag: "Melhor defasagem (meses)"
-                }
+            fig.add_vline(
+                x=0,
+                line_color="#111",
+                line_dash="dash"
             )
 
-            mostrar_grafico(fig)
-        else:
-            aviso_sem_dados("melhores defasagens")
-    else:
-        aviso_sem_dados("melhores defasagens")
-
-    st.markdown("""
-    <div class="caixa-info">
-    <b>Como interpretar as defasagens:</b> uma defasagem de zero mês
-    representa uma relação no mesmo período. Uma defasagem positiva
-    indica que o indicador foi deslocado em relação ao preço da soja,
-    conforme a convenção utilizada no processamento. A interpretação
-    final deve considerar a definição de lag adotada nos notebooks.
-    <br><br>
-    <b>Importante:</b> correlação indica associação estatística,
-    não comprova causalidade nem garante capacidade de previsão.
-    </div>
-    """, unsafe_allow_html=True)
-
-
-# ============================================================
-# 12. SINAIS DE ATENÇÃO
-# ============================================================
-
-elif pagina == "🚦 Sinais de Atenção":
-
-    st.header("Sinais de Atenção do Mercado")
-
-    st.markdown(
-        "Visualize os indicadores classificados como sinais de atenção, "
-        "as regras estatísticas utilizadas e o comportamento dos sinais "
-        "ao longo do tempo."
-    )
-
-    resumo = resultados["resumo_sinais"]
-    regras = resultados["regras_sinais"]
-    sinais = resultados["sinais"]
-
-    st.subheader("Resumo dos sinais")
-
-    if not resumo.empty:
-        coluna_tipo = encontrar_coluna(
-            resumo,
-            ["sinal", "tipo_sinal", "classificacao", "categoria", "status"]
-        )
-
-        coluna_quantidade = encontrar_coluna(
-            resumo,
-            ["quantidade", "total", "frequencia", "contagem", "n"]
-        )
-
-        if coluna_tipo and coluna_quantidade:
-            resumo[coluna_quantidade] = pd.to_numeric(
-                resumo[coluna_quantidade], errors="coerce"
+            fig.update_layout(
+                title=None,
+                coloraxis_showscale=False,
+                margin=dict(
+                    l=20,
+                    r=125,
+                    t=20,
+                    b=35
+                )
             )
 
-            fig = px.pie(
-                resumo.dropna(subset=[coluna_quantidade]),
-                names=coluna_tipo,
-                values=coluna_quantidade,
-                hole=0.45,
-                title="Distribuição dos sinais identificados"
+            st.plotly_chart(
+                preparar_figura(
+                    fig,
+                    max(430, 42 * len(best))
+                ),
+                use_container_width=True,
+                key="corr_best_lag_chart"
             )
-
-            mostrar_grafico(fig)
-        else:
-            st.info(
-                "O arquivo de resumo foi encontrado, mas não foi possível "
-                "identificar suas colunas de categoria e quantidade."
-            )
-    else:
-        aviso_sem_dados("resumo dos sinais")
-
-    st.divider()
-    st.subheader("Regras estatísticas dos sinais")
-
-    if not regras.empty:
-        coluna_indicador = encontrar_coluna(
-            regras, ["indicador", "variavel", "serie", "nome"]
-        )
-
-        coluna_lag = encontrar_coluna(
-            regras, ["lag", "defasagem", "melhor_lag"]
-        )
-
-        coluna_corr = encontrar_coluna(
-            regras,
-            ["spearman", "rho", "correlacao", "correlacao_spearman"]
-        )
-
-        coluna_p = encontrar_coluna(
-            regras,
-            ["p_ajustado", "p_valor_ajustado", "pvalue_ajustado",
-             "p_valor_fdr", "p_fdr", "p_valor"]
-        )
-
-        if coluna_indicador and coluna_lag:
-            regras_plot = regras.copy()
-            regras_plot[coluna_lag] = pd.to_numeric(
-                regras_plot[coluna_lag], errors="coerce"
-            )
-
-            fig = px.bar(
-                regras_plot,
-                x=coluna_indicador,
-                y=coluna_lag,
-                color=coluna_corr if coluna_corr else coluna_lag,
-                text=coluna_lag,
-                title="Defasagem utilizada nas regras por indicador",
-                labels={
-                    coluna_indicador: "Indicador",
-                    coluna_lag: "Defasagem (meses)"
-                }
-            )
-
-            mostrar_grafico(fig)
-
-        if coluna_corr:
-            regras_plot = regras.copy()
-            regras_plot[coluna_corr] = pd.to_numeric(
-                regras_plot[coluna_corr], errors="coerce"
-            )
-
-            if coluna_indicador:
-                fig = px.bar(
-                    regras_plot,
-                    x=coluna_corr,
-                    y=coluna_indicador,
-                    orientation="h",
-                    color=coluna_corr,
-                    color_continuous_scale="RdBu",
-                    range_color=[-1, 1],
-                    title="Intensidade e direção da associação",
-                    labels={
-                        coluna_corr: "Correlação de Spearman",
-                        coluna_indicador: "Indicador"
-                    }
-                )
-
-                fig.add_vline(x=0, line_dash="dash")
-                mostrar_grafico(fig)
-
-        if coluna_p:
-            regras_plot = regras.copy()
-            regras_plot[coluna_p] = pd.to_numeric(
-                regras_plot[coluna_p], errors="coerce"
-            )
-
-            regras_plot = regras_plot[
-                regras_plot[coluna_p] > 0
-            ].copy()
-
-            if not regras_plot.empty:
-                regras_plot["-log10(p)"] = regras_plot[coluna_p].apply(
-                    lambda valor: -math.log10(valor)
-                    if valor > 0 else np.nan
-                )
-
-                eixo = coluna_indicador or regras_plot.columns[0]
-
-                fig = px.bar(
-                    regras_plot,
-                    x=eixo,
-                    y="-log10(p)",
-                    title="Evidência estatística após ajuste de significância",
-                    labels={
-                        eixo: "Indicador",
-                        "-log10(p)": "Força da evidência estatística"
-                    }
-                )
-
-                fig.add_hline(
-                    y=-math.log10(0.05),
-                    line_dash="dash",
-                    line_color=CORES["vermelho"],
-                    annotation_text="Referência p = 0,05"
-                )
-
-                mostrar_grafico(fig)
-
-    else:
-        aviso_sem_dados("regras dos sinais")
-
-    st.divider()
-    st.subheader("Evolução dos sinais ao longo do tempo")
-
-    if not sinais.empty:
-        sinais = normalizar_data(sinais)
-
-        coluna_tipo = encontrar_coluna(
-            sinais,
-            ["sinal", "tipo_sinal", "classificacao", "categoria", "status"]
-        )
-
-        coluna_indicador = encontrar_coluna(
-            sinais, ["indicador", "variavel", "serie", "nome"]
-        )
-
-        coluna_score = encontrar_coluna(
-            sinais,
-            ["score", "pontuacao", "intensidade", "valor_sinal"]
-        )
-
-        if "data" in sinais.columns:
-            sinais_plot = filtrar_periodo(sinais, inicio, fim)
-
-            if coluna_tipo:
-                contagem = (
-                    sinais_plot.groupby(
-                        ["data", coluna_tipo]
-                    ).size().reset_index(name="quantidade")
-                )
-
-                fig = px.bar(
-                    contagem,
-                    x="data",
-                    y="quantidade",
-                    color=coluna_tipo,
-                    title="Quantidade de sinais por período",
-                    labels={
-                        "data": "Período",
-                        "quantidade": "Quantidade de sinais"
-                    }
-                )
-
-                mostrar_grafico(fig)
-
-            if coluna_indicador:
-                contagem_indicador = (
-                    sinais_plot.groupby(coluna_indicador)
-                    .size().reset_index(name="quantidade")
-                    .sort_values("quantidade", ascending=True)
-                )
-
-                fig = px.bar(
-                    contagem_indicador,
-                    x="quantidade",
-                    y=coluna_indicador,
-                    orientation="h",
-                    title="Indicadores com maior frequência de sinais",
-                    labels={
-                        "quantidade": "Quantidade de ocorrências",
-                        coluna_indicador: "Indicador"
-                    },
-                    text="quantidade"
-                )
-
-                mostrar_grafico(fig)
-
-            if coluna_score:
-                sinais_plot[coluna_score] = pd.to_numeric(
-                    sinais_plot[coluna_score], errors="coerce"
-                )
-
-                fig = px.scatter(
-                    sinais_plot,
-                    x="data",
-                    y=coluna_score,
-                    color=coluna_tipo if coluna_tipo else None,
-                    hover_data=[coluna_indicador]
-                    if coluna_indicador else None,
-                    title="Intensidade dos sinais ao longo do tempo",
-                    labels={
-                        "data": "Período",
-                        coluna_score: "Intensidade"
-                    }
-                )
-
-                mostrar_grafico(fig)
 
         else:
             st.info(
-                "O arquivo de sinais foi localizado, mas não foi "
-                "reconhecida uma coluna de data."
+                "O arquivo de melhores defasagens não contém "
+                "as colunas esperadas."
             )
 
-        # Comparação com o preço DERAL, quando as datas coincidirem.
+    with tabs_corr[3]:
+        lag = carregar_csv_flexivel(
+            "08_correlacoes_defasagens_0_6_meses.csv"
+        )
+
+        titulo_secao(
+            "Correlação por defasagem (0 a 6 meses)",
+            "Heatmap com os valores reais de correlação. "
+            "Selecione o tipo de correlação para comparar "
+            "os indicadores ao longo dos lags."
+        )
+
         if (
-            not df_deral.empty
-            and "data" in df_deral.columns
-            and "preco_soja_pr" in df_deral.columns
-            and "data" in sinais.columns
+            not lag.empty
+            and {
+                "variavel_explicativa",
+                "defasagem_meses"
+            }.issubset(lag.columns)
         ):
-            st.subheader("Sinais em relação ao preço observado")
+            metricas_lag = [
+                c for c in ["spearman_rho", "pearson_r"]
+                if c in lag.columns
+            ]
 
-            preco = df_deral[["data", "preco_soja_pr"]].copy()
-            preco["preco_soja_pr"] = pd.to_numeric(
-                preco["preco_soja_pr"], errors="coerce"
-            )
-
-            sinais_data = sinais.copy()
-
-            if coluna_score:
-                sinais_data[coluna_score] = pd.to_numeric(
-                    sinais_data[coluna_score], errors="coerce"
+            if metricas_lag:
+                metric_col = st.radio(
+                    "Correlação",
+                    metricas_lag,
+                    horizontal=True,
+                    format_func=lambda c: (
+                        "Spearman"
+                        if c == "spearman_rho"
+                        else "Pearson"
+                    )
                 )
 
-                sinais_agrupados = (
-                    sinais_data.groupby("data")[coluna_score]
-                    .mean().reset_index()
+                lag["defasagem_meses"] = pd.to_numeric(
+                    lag["defasagem_meses"],
+                    errors="coerce"
                 )
 
-                comparacao = preco.merge(
-                    sinais_agrupados,
-                    on="data",
-                    how="inner"
+                lag[metric_col] = pd.to_numeric(
+                    lag[metric_col],
+                    errors="coerce"
                 )
 
-                if not comparacao.empty:
-                    fig = make_subplots(specs=[[{"secondary_y": True}]])
+                pivot = lag.pivot_table(
+                    index="variavel_explicativa",
+                    columns="defasagem_meses",
+                    values=metric_col,
+                    aggfunc="mean"
+                )
 
-                    fig.add_trace(
-                        go.Scatter(
-                            x=comparacao["data"],
-                            y=comparacao["preco_soja_pr"],
-                            mode="lines",
-                            name="Preço da soja — DERAL",
-                            line=dict(color=CORES["verde"], width=2.5)
-                        ),
-                        secondary_y=False
-                    )
+                pivot = pivot.reindex(
+                    columns=range(7)
+                )
 
-                    fig.add_trace(
-                        go.Bar(
-                            x=comparacao["data"],
-                            y=comparacao[coluna_score],
-                            name="Intensidade média dos sinais",
-                            opacity=0.35,
-                            marker_color=CORES["laranja"]
-                        ),
-                        secondary_y=True
-                    )
+                pivot.index = [
+                    nome_amigavel(i)
+                    for i in pivot.index
+                ]
 
-                    fig.update_layout(
-                        title="Preço observado e intensidade dos sinais"
-                    )
-
-                    fig.update_yaxes(
-                        title_text="Preço da soja",
-                        secondary_y=False
-                    )
-
-                    fig.update_yaxes(
-                        title_text="Intensidade dos sinais",
-                        secondary_y=True
-                    )
-
-                    mostrar_grafico(fig)
-
-    else:
-        aviso_sem_dados("sinais mensais")
-
-    st.markdown("""
-    <div class="caixa-info">
-    <b>Interpretação:</b> os sinais de atenção funcionam como mecanismos
-    de monitoramento de condições identificadas nas séries históricas.
-    Eles não representam previsões garantidas de alta ou queda do preço.
-    A leitura deve considerar a intensidade, a frequência, a defasagem
-    e a evidência estatística de cada indicador.
-    </div>
-    """, unsafe_allow_html=True)
-
-
-# ============================================================
-# 13. MODELAGEM E VALIDAÇÃO
-# ============================================================
-
-elif pagina == "🤖 Modelagem e Validação":
-
-    st.header("Modelagem e Validação")
-
-    st.markdown(
-        "Apresente os resultados da modelagem Ridge, os indicadores "
-        "de desempenho, os coeficientes estimados e a comparação entre "
-        "os valores observados e estimados no conjunto de teste."
-    )
-
-    metricas = resultados["metricas_modelagem"]
-    coeficientes = resultados["coeficientes"]
-    previsoes = resultados["previsoes"]
-
-    st.subheader("Desempenho da modelagem")
-
-    if not metricas.empty:
-        coluna_metrica = encontrar_coluna(
-            metricas,
-            ["metrica", "indicador", "nome", "medida"]
-        )
-
-        coluna_valor = encontrar_coluna(
-            metricas,
-            ["valor", "resultado", "score", "metrica_valor"]
-        )
-
-        if coluna_metrica and coluna_valor:
-            metricas_plot = metricas.copy()
-            metricas_plot[coluna_valor] = pd.to_numeric(
-                metricas_plot[coluna_valor], errors="coerce"
-            )
-
-            metricas_plot = metricas_plot.dropna(
-                subset=[coluna_valor]
-            )
-
-            if not metricas_plot.empty:
-                fig = px.bar(
-                    metricas_plot,
-                    x=coluna_metrica,
-                    y=coluna_valor,
-                    color=coluna_metrica,
+                fig = px.imshow(
+                    pivot,
                     text_auto=".3f",
-                    title="Métricas de desempenho do modelo Ridge",
+                    aspect="auto",
+                    zmin=-1,
+                    zmax=1,
+                    color_continuous_scale=[
+                        "#B85C4A",
+                        "#F7F5EA",
+                        "#347653"
+                    ],
                     labels={
-                        coluna_metrica: "Métrica",
-                        coluna_valor: "Valor"
+                        "x": "Defasagem (meses)",
+                        "y": "Indicador",
+                        "color": "Correlação"
                     }
                 )
-
-                mostrar_grafico(fig)
-
-                colunas_metricas = st.columns(
-                    min(4, len(metricas_plot))
-                )
-
-                for i, (_, linha) in enumerate(
-                    metricas_plot.head(4).iterrows()
-                ):
-                    colunas_metricas[i].metric(
-                        str(linha[coluna_metrica]),
-                        formatar_numero(linha[coluna_valor], 4)
-                    )
-        else:
-            st.info(
-                "Não foi possível identificar as colunas de métrica "
-                "e valor no arquivo de modelagem."
-            )
-    else:
-        aviso_sem_dados("métricas da modelagem")
-
-    st.divider()
-    st.subheader("Importância dos coeficientes")
-
-    if not coeficientes.empty:
-        coluna_variavel = encontrar_coluna(
-            coeficientes,
-            ["variavel", "indicador", "feature", "nome", "variavel_modelo"]
-        )
-
-        coluna_coef = encontrar_coluna(
-            coeficientes,
-            ["coeficiente", "coef", "valor", "peso"]
-        )
-
-        if coluna_variavel and coluna_coef:
-            coef_plot = coeficientes.copy()
-            coef_plot[coluna_coef] = pd.to_numeric(
-                coef_plot[coluna_coef], errors="coerce"
-            )
-
-            coef_plot = coef_plot.dropna(subset=[coluna_coef])
-            coef_plot = coef_plot.sort_values(coluna_coef)
-
-            fig = px.bar(
-                coef_plot,
-                x=coluna_coef,
-                y=coluna_variavel,
-                orientation="h",
-                color=coluna_coef,
-                color_continuous_scale="RdBu",
-                title="Coeficientes estimados pelo modelo Ridge",
-                labels={
-                    coluna_coef: "Coeficiente",
-                    coluna_variavel: "Indicador"
-                },
-                text_auto=".4f"
-            )
-
-            fig.add_vline(x=0, line_dash="dash", line_color="black")
-
-            mostrar_grafico(fig)
-        else:
-            aviso_sem_dados("coeficientes Ridge")
-    else:
-        aviso_sem_dados("coeficientes Ridge")
-
-    st.divider()
-    st.subheader("Valores observados e estimados")
-
-    if not previsoes.empty:
-        previsoes = normalizar_data(previsoes)
-
-        coluna_real = encontrar_coluna(
-            previsoes,
-            [
-                "valor_real", "preco_real", "observado",
-                "y_real", "preco_observado", "real"
-            ]
-        )
-
-        coluna_previsto = encontrar_coluna(
-            previsoes,
-            [
-                "valor_previsto", "previsao", "previsto",
-                "y_previsto", "preco_previsto", "predito"
-            ]
-        )
-
-        if coluna_real and coluna_previsto:
-            previsoes[coluna_real] = pd.to_numeric(
-                previsoes[coluna_real], errors="coerce"
-            )
-
-            previsoes[coluna_previsto] = pd.to_numeric(
-                previsoes[coluna_previsto], errors="coerce"
-            )
-
-            previsoes_plot = previsoes.dropna(
-                subset=[coluna_real, coluna_previsto]
-            ).copy()
-
-            if "data" in previsoes_plot.columns:
-                previsoes_plot = previsoes_plot.sort_values("data")
-
-                fig = go.Figure()
-
-                fig.add_trace(go.Scatter(
-                    x=previsoes_plot["data"],
-                    y=previsoes_plot[coluna_real],
-                    mode="lines",
-                    name="Preço observado",
-                    line=dict(color=CORES["azul"], width=2.5)
-                ))
-
-                fig.add_trace(go.Scatter(
-                    x=previsoes_plot["data"],
-                    y=previsoes_plot[coluna_previsto],
-                    mode="lines",
-                    name="Preço estimado",
-                    line=dict(
-                        color=CORES["laranja"],
-                        width=2.5,
-                        dash="dash"
-                    )
-                ))
 
                 fig.update_layout(
-                    title="Comparação entre valores observados e estimados",
-                    xaxis_title="Período",
-                    yaxis_title="Preço da soja"
+                    title=None,
+                    margin=dict(
+                        l=20,
+                        r=20,
+                        t=20,
+                        b=30
+                    )
                 )
 
-                mostrar_grafico(fig)
+                st.plotly_chart(
+                    preparar_figura(fig, 460),
+                    use_container_width=True,
+                    key="corr_lag_heatmap"
+                )
 
             else:
-                fig = go.Figure()
-
-                fig.add_trace(go.Scatter(
-                    x=list(range(len(previsoes_plot))),
-                    y=previsoes_plot[coluna_real],
-                    mode="lines+markers",
-                    name="Observado"
-                ))
-
-                fig.add_trace(go.Scatter(
-                    x=list(range(len(previsoes_plot))),
-                    y=previsoes_plot[coluna_previsto],
-                    mode="lines+markers",
-                    name="Estimado"
-                ))
-
-                fig.update_layout(
-                    title="Valores observados e estimados no conjunto de teste",
-                    xaxis_title="Observações do conjunto de teste",
-                    yaxis_title="Preço da soja"
+                st.info(
+                    "O arquivo não possui colunas Pearson ou Spearman."
                 )
-
-                mostrar_grafico(fig)
-
-            # Gráfico dos erros de previsão.
-            previsoes_plot["erro"] = (
-                previsoes_plot[coluna_real]
-                - previsoes_plot[coluna_previsto]
-            )
-
-            eixo_x = (
-                previsoes_plot["data"]
-                if "data" in previsoes_plot.columns
-                else list(range(len(previsoes_plot)))
-            )
-
-            fig = px.bar(
-                x=eixo_x,
-                y=previsoes_plot["erro"],
-                title="Erro entre o valor observado e o estimado",
-                labels={
-                    "x": "Período ou observação",
-                    "y": "Erro (observado − estimado)"
-                }
-            )
-
-            fig.add_hline(y=0, line_dash="dash", line_color="black")
-            mostrar_grafico(fig)
-
-            # Dispersão observado x estimado.
-            fig = px.scatter(
-                previsoes_plot,
-                x=coluna_real,
-                y=coluna_previsto,
-                title="Relação entre valores observados e estimados",
-                labels={
-                    coluna_real: "Valor observado",
-                    coluna_previsto: "Valor estimado"
-                },
-                trendline="ols"
-            )
-
-            minimo = min(
-                previsoes_plot[coluna_real].min(),
-                previsoes_plot[coluna_previsto].min()
-            )
-
-            maximo = max(
-                previsoes_plot[coluna_real].max(),
-                previsoes_plot[coluna_previsto].max()
-            )
-
-            fig.add_trace(go.Scatter(
-                x=[minimo, maximo],
-                y=[minimo, maximo],
-                mode="lines",
-                name="Referência ideal",
-                line=dict(color="gray", dash="dash")
-            ))
-
-            mostrar_grafico(fig)
 
         else:
             st.info(
-                "O arquivo de previsões foi encontrado, mas as colunas "
-                "de valores observados e estimados não foram identificadas."
-            )
-    else:
-        aviso_sem_dados("previsões do conjunto de teste")
-
-    st.markdown("""
-    <div class="caixa-info">
-    <b>Como interpretar:</b> os coeficientes Ridge indicam a contribuição
-    estimada de cada variável dentro do modelo ajustado, considerando
-    a escala e o tratamento utilizados. A comparação entre valores
-    observados e estimados permite avaliar visualmente o comportamento
-    do modelo no conjunto de teste. As métricas devem ser interpretadas
-    em conjunto, e não isoladamente.
-    </div>
-    """, unsafe_allow_html=True)
-
-
-# ============================================================
-# 14. RODAPÉ E DIAGNÓSTICO
-# ============================================================
-
-st.divider()
-
-with st.expander("Informações sobre os dados carregados"):
-
-    arquivos_verificados = [
-        "dados_consolidados_dashboard.csv / .parquet",
-        "deral_preco_soja_pr.csv",
-        "07_estatisticas_descritivas_niveis.csv",
-        "07_sazonalidade_mensal.csv",
-        "07_estatisticas_variacoes_mensais.csv",
-        "08_correlacoes_niveis.csv",
-        "08_correlacoes_variacoes_mensais.csv",
-        "08_melhores_defasagens_spearman.csv",
-        "08_correlacoes_defasagens_0_6_meses.csv",
-        "10_resumo_sinais.csv",
-        "10_regras_sinais_atencao.csv",
-        "10_sinais_atencao_mensais.csv",
-        "10_metricas_modelagem.csv",
-        "10_coeficientes_ridge.csv",
-        "10_previsoes_teste_2020_2025.csv"
-    ]
-
-    st.write("**Status da base principal:**")
-
-    if df.empty:
-        st.error("Base principal não carregada.")
-    else:
-        st.success(
-            f"Base principal carregada: {len(df):,} registros "
-            f"e {len(df.columns)} colunas."
-        )
-
-        if "data" in df.columns:
-            st.write(
-                f"Período disponível: {df['data'].min():%m/%Y} "
-                f"até {df['data'].max():%m/%Y}."
+                "Arquivo de correlações por defasagem não encontrado "
+                "ou sem colunas esperadas."
             )
 
-    st.write("**Arquivos de resultados:**")
 
-    for arquivo in arquivos_verificados:
-        nome = Path(arquivo).stem
+# ====================== SINAIS DE ATENÇÃO ======================
+elif pagina == "⚠️ Sinais de Atenção":
 
-        if nome == "dados_consolidados_dashboard":
-            carregado = not df.empty
-        elif nome == "deral_preco_soja_pr":
-            carregado = not df_deral.empty
-        else:
-            chave = {
-                "07_estatisticas_descritivas_niveis": "estatisticas",
-                "07_sazonalidade_mensal": "sazonalidade",
-                "07_estatisticas_variacoes_mensais": "variacoes",
-                "08_correlacoes_niveis": "correlacoes_niveis",
-                "08_correlacoes_variacoes_mensais": "correlacoes_variacoes",
-                "08_melhores_defasagens_spearman": "melhores_lags",
-                "08_correlacoes_defasagens_0_6_meses": "lags",
-                "10_resumo_sinais": "resumo_sinais",
-                "10_regras_sinais_atencao": "regras_sinais",
-                "10_sinais_atencao_mensais": "sinais",
-                "10_metricas_modelagem": "metricas_modelagem",
-                "10_coeficientes_ridge": "coeficientes",
-                "10_previsoes_teste_2020_2025": "previsoes"
-            }.get(nome)
-
-            carregado = (
-                chave is not None
-                and not resultados[chave].empty
-            )
-
-        if carregado:
-            st.write(f"✅ {arquivo}")
-        else:
-            st.write(f"⚠️ {arquivo} — não localizado ou vazio")
-
-    st.caption(
-        "Os gráficos são construídos a partir dos arquivos processados "
-        "disponíveis na pasta resultados. A ausência de um arquivo ou "
-        "de uma coluna necessária pode impedir a exibição do gráfico "
-        "correspondente."
+    st.markdown(
+        '<div class="page-title">Sinais de Atenção</div>',
+        unsafe_allow_html=True
     )
 
-st.caption(
-    "AgroData PR | Projeto de análise de indicadores de mercado "
-    "e monitoramento do preço da soja no Paraná."
+    st.markdown(
+        '<div class="page-subtitle">Indicadores exploratórios para acompanhar condições de mercado — não constituem recomendação comercial.</div>',
+        unsafe_allow_html=True
+    )
+
+    resumo = carregar_csv_flexivel(
+        "10_resumo_sinais.csv"
+    )
+
+    if not resumo.empty:
+        r = resumo.iloc[0]
+
+        meses_teste = pd.to_numeric(
+            r.get("meses_teste", 0),
+            errors="coerce"
+        )
+
+        meses_teste = (
+            int(meses_teste)
+            if pd.notna(meses_teste)
+            else 0
+        )
+
+        st.caption(
+            f"Validação original: "
+            f"{r.get('periodo_teste_inicio', '—')} a "
+            f"{r.get('periodo_teste_fim', '—')} · "
+            f"{meses_teste} meses. "
+            "O resumo refere-se ao teste completo."
+        )
+
+        kpi_specs = [
+            ("Sinais identificados", "quantidade_sinais", "{:.0f}"),
+            ("Meses sem sinal", "meses_sem_sinal", "{:.0f}"),
+            ("Cobertura do teste", "cobertura_pct", "{:.1f}%"),
+            ("Acerto entre os sinais", "taxa_acerto_sinais_pct", "{:.1f}%")
+        ]
+
+        cols = st.columns(4)
+
+        for col, (label, key, fmt) in zip(cols, kpi_specs):
+            val = pd.to_numeric(
+                pd.Series([r.get(key)]),
+                errors="coerce"
+            ).iloc[0]
+
+            with col:
+                st.metric(
+                    label,
+                    "—" if pd.isna(val) else fmt.format(val)
+                )
+
+        quantidade_sinais = pd.to_numeric(
+            pd.Series([r.get("quantidade_sinais", 0)]),
+            errors="coerce"
+        ).iloc[0]
+
+        numero_acertos = pd.to_numeric(
+            pd.Series([r.get("numero_acertos", 0)]),
+            errors="coerce"
+        ).iloc[0]
+
+        sinais_alta = pd.to_numeric(
+            pd.Series([r.get("sinais_alta", 0)]),
+            errors="coerce"
+        ).iloc[0]
+
+        sinais_baixa = pd.to_numeric(
+            pd.Series([r.get("sinais_baixa", 0)]),
+            errors="coerce"
+        ).iloc[0]
+
+        st.caption(
+            f"Dos {int(quantidade_sinais) if pd.notna(quantidade_sinais) else 0} "
+            f"sinais emitidos, "
+            f"{int(numero_acertos) if pd.notna(numero_acertos) else 0} "
+            f"coincidiram com a direção observada. Foram "
+            f"{int(sinais_alta) if pd.notna(sinais_alta) else 0} "
+            f"sinais de alta e "
+            f"{int(sinais_baixa) if pd.notna(sinais_baixa) else 0} "
+            f"de baixa."
+        )
+
+    else:
+        st.warning(
+            "O resumo dos sinais não foi encontrado."
+        )
+
+    st.markdown("---")
+
+    regras = carregar_csv_flexivel(
+        "10_regras_sinais_atencao.csv"
+    )
+
+    titulo_secao(
+        "Regras utilizadas",
+        "Indicadores, defasagens e limites de referência "
+        "estimados no conjunto de treinamento."
+    )
+
+    if not regras.empty:
+        regras_exibir = regras.rename(
+            columns={
+                "indicador": "Indicador",
+                "lag_meses": "Defasagem (meses)",
+                "rho_spearman_treino": "Spearman no treino",
+                "p_fdr_bh": "p-valor ajustado (FDR)",
+                "sentido_relacao": "Sentido da relação",
+                "q25_treino": "Limite inferior (Q25)",
+                "q75_treino": "Limite superior (Q75)",
+                "voto_acima_q75": "Voto acima do Q75",
+                "voto_abaixo_q25": "Voto abaixo do Q25"
+            }
+        ).copy()
+
+        if "Indicador" in regras_exibir.columns:
+            regras_exibir["Indicador"] = (
+                regras_exibir["Indicador"].map(nome_amigavel)
+            )
+
+        if "Spearman no treino" in regras_exibir.columns:
+            regras_plot = regras_exibir.copy()
+
+            regras_plot["Spearman no treino"] = pd.to_numeric(
+                regras_plot["Spearman no treino"],
+                errors="coerce"
+            )
+
+            regras_plot = regras_plot.dropna(
+                subset=["Spearman no treino"]
+            )
+
+            if "Indicador" in regras_plot.columns:
+                regras_plot["Indicador gráfico"] = regras_plot.apply(
+                    lambda r: (
+                        f"{r['Indicador']} · "
+                        f"lag {int(r['Defasagem (meses)'])}m"
+                        if (
+                            "Defasagem (meses)" in regras_plot.columns
+                            and pd.notna(
+                                pd.to_numeric(
+                                    r["Defasagem (meses)"],
+                                    errors="coerce"
+                                )
+                            )
+                        )
+                        else str(r["Indicador"])
+                    ),
+                    axis=1
+                )
+
+                regras_plot = regras_plot.sort_values(
+                    "Spearman no treino"
+                )
+
+                fig_regras = px.bar(
+                    regras_plot,
+                    x="Spearman no treino",
+                    y="Indicador gráfico",
+                    orientation="h",
+                    color="Spearman no treino",
+                    color_continuous_scale=[
+                        "#B85C4A",
+                        "#F7F5EA",
+                        "#347653"
+                    ],
+                    range_color=[-1, 1],
+                    text=regras_plot[
+                        "Spearman no treino"
+                    ].map(lambda v: f"{v:+.3f}"),
+                    labels={
+                        "Spearman no treino": "Spearman ρ",
+                        "Indicador gráfico": "Indicador e defasagem"
+                    }
+                )
+
+                fig_regras.update_traces(
+                    textposition="outside",
+                    cliponaxis=False
+                )
+
+                fig_regras.add_vline(
+                    x=0,
+                    line_color="#111",
+                    line_dash="dash"
+                )
+
+                fig_regras.update_layout(
+                    title=None,
+                    coloraxis_showscale=False,
+                    margin=dict(
+                        l=15,
+                        r=60,
+                        t=20,
+                        b=30
+                    )
+                )
+
+                st.plotly_chart(
+                    preparar_figura(
+                        fig_regras,
+                        max(380, 42 * len(regras_plot))
+                    ),
+                    use_container_width=True,
+                    key="signal_rules_chart"
+                )
+
+        # Gráfico dos limites Q25 e Q75.
+        if (
+            "Limite inferior (Q25)" in regras_exibir.columns
+            and "Limite superior (Q75)" in regras_exibir.columns
+            and "Indicador" in regras_exibir.columns
+        ):
+            limites_plot = regras_exibir[
+                [
+                    "Indicador",
+                    "Limite inferior (Q25)",
+                    "Limite superior (Q75)"
+                ]
+            ].copy()
+
+            for c in [
+                "Limite inferior (Q25)",
+                "Limite superior (Q75)"
+            ]:
+                limites_plot[c] = pd.to_numeric(
+                    limites_plot[c],
+                    errors="coerce"
+                )
+
+            limites_long = limites_plot.melt(
+                id_vars="Indicador",
+                var_name="Limite",
+                value_name="Valor"
+            ).dropna()
+
+            if not limites_long.empty:
+                fig_limites = px.bar(
+                    limites_long,
+                    x="Indicador",
+                    y="Valor",
+                    color="Limite",
+                    barmode="group",
+                    labels={
+                        "Indicador": "Indicador",
+                        "Valor": "Valor de referência"
+                    },
+                    color_discrete_sequence=[
+                        "#D19A45",
+                        "#426C9B"
+                    ]
+                )
+
+                fig_limites.update_layout(
+                    title=None,
+                    xaxis_tickangle=-30,
+                    legend_title=None
+                )
+
+                st.plotly_chart(
+                    preparar_figura(fig_limites, 380),
+                    use_container_width=True,
+                    key="signal_rule_limits"
+                )
+
+        st.caption(
+            "Os limites Q25 e Q75 representam referências "
+            "calculadas no treinamento. Eles não devem ser "
+            "interpretados como limites universais de preço "
+            "ou como recomendações de compra e venda."
+        )
+
+    else:
+        st.info(
+            "Arquivo de regras não encontrado."
+        )
+
+    st.markdown("---")
+
+    sinais = carregar_csv_flexivel(
+        "10_sinais_atencao_mensais.csv"
+    )
+
+    titulo_secao(
+        "Evolução mensal dos sinais",
+        "A série abaixo respeita o período selecionado na barra lateral."
+    )
+
+    sinais_filtrados, col_data_sinais = filtrar_periodo(
+        sinais,
+        start_date,
+        end_date
+    )
+
+    if not sinais_filtrados.empty and col_data_sinais:
+        sinais_filtrados[col_data_sinais] = pd.to_datetime(
+            sinais_filtrados[col_data_sinais],
+            errors="coerce"
+        )
+
+        sinais_filtrados = (
+            sinais_filtrados
+            .dropna(subset=[col_data_sinais])
+            .sort_values(col_data_sinais)
+        )
+
+        if "pontuacao" in sinais_filtrados.columns:
+            sinais_filtrados["pontuacao"] = pd.to_numeric(
+                sinais_filtrados["pontuacao"],
+                errors="coerce"
+            )
+
+            fig_sinais = px.bar(
+                sinais_filtrados,
+                x=col_data_sinais,
+                y="pontuacao",
+                color=(
+                    "sinal"
+                    if "sinal" in sinais_filtrados.columns
+                    else None
+                ),
+                color_discrete_map={
+                    "alta": "#4C805B",
+                    "baixa": "#C47762",
+                    "sem sinal": "#AAB4AC"
+                },
+                labels={
+                    col_data_sinais: "Mês",
+                    "pontuacao": "Pontuação",
+                    "sinal": "Classificação"
+                }
+            )
+
+            fig_sinais.add_hline(
+                y=0,
+                line_color="#333",
+                line_dash="dash"
+            )
+
+            fig_sinais.update_layout(
+                title=None,
+                legend_title=None
+            )
+
+            st.plotly_chart(
+                preparar_figura(fig_sinais, 350),
+                use_container_width=True,
+                key="signals_monthly_timeline"
+            )
+
+        # Comparação entre sinal e direção observada.
+        if "acerto_sinal" in sinais_filtrados.columns:
+            acertos = sinais_filtrados.copy()
+
+            acertos["acerto_num"] = (
+                acertos["acerto_sinal"]
+                .astype(str)
+                .str.strip()
+                .str.lower()
+                .map({
+                    "true": 1,
+                    "1": 1,
+                    "sim": 1,
+                    "acerto": 1,
+                    "false": 0,
+                    "0": 0,
+                    "não": 0,
+                    "nao": 0,
+                    "erro": 0
+                })
+            )
+
+            acertos_validos = acertos.dropna(
+                subset=["acerto_num"]
+            )
+
+            if not acertos_validos.empty:
+                acertos_validos["Resultado"] = (
+                    acertos_validos["acerto_num"].map({
+                        1: "Coincidiu com a direção observada",
+                        0: "Não coincidiu com a direção observada"
+                    })
+                )
+
+                contagem = (
+                    acertos_validos["Resultado"]
+                    .value_counts()
+                    .rename_axis("Resultado")
+                    .reset_index(name="Quantidade")
+                )
+
+                fig_acertos = px.bar(
+                    contagem,
+                    x="Resultado",
+                    y="Quantidade",
+                    color="Resultado",
+                    color_discrete_map={
+                        "Coincidiu com a direção observada": "#4C805B",
+                        "Não coincidiu com a direção observada": "#C47762"
+                    },
+                    text="Quantidade",
+                    labels={
+                        "Resultado": "Resultado da validação",
+                        "Quantidade": "Quantidade de sinais"
+                    }
+                )
+
+                fig_acertos.update_layout(
+                    title=None,
+                    showlegend=False
+                )
+
+                st.plotly_chart(
+                    preparar_figura(fig_acertos, 300),
+                    use_container_width=True,
+                    key="signals_validation_chart"
+                )
+
+        # Preço observado e pontuação dos sinais.
+        preco_sinais = (
+            deral_filtrado[
+                ["data", "preco_soja_pr"]
+            ].copy()
+            if not deral_filtrado.empty
+            else pd.DataFrame()
+        )
+
+        if not preco_sinais.empty:
+            preco_sinais["data"] = pd.to_datetime(
+                preco_sinais["data"],
+                errors="coerce"
+            )
+
+            preco_sinais["preco_soja_pr"] = pd.to_numeric(
+                preco_sinais["preco_soja_pr"],
+                errors="coerce"
+            )
+
+            fig_comparacao = go.Figure()
+
+            fig_comparacao.add_trace(go.Scatter(
+                x=preco_sinais["data"],
+                y=preco_sinais["preco_soja_pr"],
+                mode="lines",
+                name="Preço observado",
+                line=dict(
+                    color="#286247",
+                    width=2.5
+                ),
+                yaxis="y"
+            ))
+
+            if "pontuacao" in sinais_filtrados.columns:
+                fig_comparacao.add_trace(go.Bar(
+                    x=sinais_filtrados[col_data_sinais],
+                    y=sinais_filtrados["pontuacao"],
+                    name="Pontuação dos sinais",
+                    marker_color="#D19A45",
+                    opacity=0.45,
+                    yaxis="y2"
+                ))
+
+            fig_comparacao.update_layout(
+                title=None,
+                xaxis_title="Período",
+                yaxis=dict(
+                    title="Preço observado (R$/saca de 60 kg)",
+                    side="left"
+                ),
+                yaxis2=dict(
+                    title="Pontuação dos sinais",
+                    overlaying="y",
+                    side="right",
+                    showgrid=False
+                ),
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    x=0
+                )
+            )
+
+            st.plotly_chart(
+                preparar_figura(fig_comparacao, 420),
+                use_container_width=True,
+                key="signals_vs_observed_price"
+            )
+
+        st.caption(
+            "A comparação apresenta o preço observado e a pontuação "
+            "dos sinais no mesmo intervalo. A proximidade visual "
+            "entre eles não comprova que os sinais anteciparam o "
+            "movimento do preço. A validação depende da regra de "
+            "direção e do período de teste."
+        )
+
+    else:
+        st.info(
+            "Não há registros de sinais no intervalo selecionado."
+        )
+
+    st.markdown(
+        '<div class="note-box">A taxa de acerto é calculada somente '
+        'entre os meses em que houve emissão de sinal. A cobertura '
+        'indica a proporção do período de teste em que o mecanismo '
+        'emitiu algum sinal. O mecanismo é experimental e não deve '
+        'ser usado isoladamente para decisões comerciais.</div>',
+        unsafe_allow_html=True
+    )
+
+
+# =========================== MODELAGEM ==========================
+elif pagina == "🤖 Modelagem e Validação":
+
+    st.markdown(
+        '<div class="page-title">Modelagem e Validação</div>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        '<div class="page-subtitle">Métricas, coeficientes estimados e comparação de previsões no conjunto de teste.</div>',
+        unsafe_allow_html=True
+    )
+
+    metrics = carregar_csv_flexivel(
+        "10_metricas_modelagem.csv"
+    )
+
+    coefficients = carregar_csv_flexivel(
+        "10_coeficientes_ridge.csv"
+    )
+
+    predictions = carregar_csv_flexivel(
+        "10_previsoes_teste_2020_2025.csv"
+    )
+
+    st.info(
+        "As métricas resumem o conjunto de teste completo "
+        "(jan/2020 a dez/2025; 72 observações). "
+        "O filtro de período altera apenas o gráfico de previsões, "
+        "não recalcula as métricas."
+    )
+
+    titulo_secao(
+        "Desempenho no conjunto de teste",
+        "Escolha um modelo. As métricas de preço (R$ por saca) "
+        "e de variação mensal (pontos percentuais) são apresentadas separadamente."
+    )
+
+    if not metrics.empty and "modelo" in metrics.columns:
+        model_names = (
+            metrics["modelo"]
+            .dropna()
+            .astype(str)
+            .tolist()
+        )
+
+        if model_names:
+            selected_model = st.selectbox(
+                "Modelo",
+                model_names,
+                index=(
+                    model_names.index("Ridge")
+                    if "Ridge" in model_names
+                    else 0
+                )
+            )
+
+            row = metrics[
+                metrics["modelo"].astype(str) == selected_model
+            ].iloc[0]
+
+            st.markdown(
+                "**Estimativa do preço (R$/saca de 60 kg)**"
+            )
+
+            price_metrics = [
+                ("mae_preco", "MAE"),
+                ("rmse_preco", "RMSE"),
+                ("mape_preco_pct", "MAPE")
+            ]
+
+            price_cards = st.columns(3)
+
+            for col, (key, label) in zip(
+                price_cards,
+                price_metrics
+            ):
+                val = pd.to_numeric(
+                    pd.Series([row.get(key)]),
+                    errors="coerce"
+                ).iloc[0]
+
+                with col:
+                    st.metric(
+                        label,
+                        "—" if pd.isna(val) else (
+                            f"{val:.2f}%"
+                            if key == "mape_preco_pct"
+                            else f"R$ {val:.2f}"
+                        )
+                    )
+
+            st.markdown(
+                "**Desempenho na variação mensal e direção**"
+            )
+
+            variation_metrics = [
+                ("mae_variacao_pct_pontos", "MAE variação (p.p.)"),
+                ("rmse_variacao_pct_pontos", "RMSE variação (p.p.)"),
+                ("r2_variacao", "R² variação"),
+                ("acuracia_direcao", "Acurácia direcional"),
+                ("acuracia_balanceada_direcao", "Acurácia balanceada")
+            ]
+
+            var_cards = st.columns(5)
+
+            for col, (key, label) in zip(
+                var_cards,
+                variation_metrics
+            ):
+                val = pd.to_numeric(
+                    pd.Series([row.get(key)]),
+                    errors="coerce"
+                ).iloc[0]
+
+                with col:
+                    shown = (
+                        "—"
+                        if pd.isna(val)
+                        else (
+                            f"{val:.1%}"
+                            if "acuracia" in key
+                            else f"{val:.3f}"
+                        )
+                    )
+
+                    st.metric(label, shown)
+
+            if selected_model == "Ridge":
+                alpha = pd.to_numeric(
+                    pd.Series([row.get("alpha_ridge")]),
+                    errors="coerce"
+                ).iloc[0]
+
+                st.caption(
+                    f"Alpha selecionado na validação temporal: {alpha:g}"
+                    if pd.notna(alpha)
+                    else "Alpha Ridge não informado."
+                )
+
+    else:
+        st.info(
+            "Arquivo de métricas não encontrado ou vazio."
+        )
+
+    st.markdown("---")
+
+    titulo_secao(
+        "Coeficientes estimados pelo Ridge",
+        "Magnitude e direção dos coeficientes padronizados. "
+        "Valores positivos e negativos indicam direções distintas no modelo."
+    )
+
+    if (
+        not coefficients.empty
+        and "coeficiente_padronizado_ridge" in coefficients.columns
+    ):
+        cplot = coefficients.copy()
+
+        cplot["coeficiente_padronizado_ridge"] = pd.to_numeric(
+            cplot["coeficiente_padronizado_ridge"],
+            errors="coerce"
+        )
+
+        cplot = cplot.dropna(
+            subset=["coeficiente_padronizado_ridge"]
+        )
+
+        cplot["Indicador"] = cplot.apply(
+            lambda r: (
+                f"{nome_amigavel(r.get('indicador', ''))} · "
+                f"lag {int(r.get('lag_meses', 0))}m"
+            ),
+            axis=1
+        )
+
+        cplot = cplot.sort_values(
+            "coeficiente_padronizado_ridge"
+        )
+
+        figc = px.bar(
+            cplot,
+            x="coeficiente_padronizado_ridge",
+            y="Indicador",
+            orientation="h",
+            color="coeficiente_padronizado_ridge",
+            color_continuous_scale=[
+                "#B85C4A",
+                "#F7F5EA",
+                "#347653"
+            ],
+            text=cplot[
+                "coeficiente_padronizado_ridge"
+            ].map(lambda v: f"{v:+.3f}"),
+            labels={
+                "coeficiente_padronizado_ridge": "Coeficiente padronizado",
+                "Indicador": "Indicador"
+            }
+        )
+
+        figc.update_traces(
+            textposition="outside",
+            cliponaxis=False
+        )
+
+        figc.add_vline(
+            x=0,
+            line_color="#111",
+            line_dash="dash"
+        )
+
+        figc.update_layout(
+            title=None,
+            coloraxis_showscale=False,
+            margin=dict(
+                l=20,
+                r=70,
+                t=20,
+                b=30
+            )
+        )
+
+        st.plotly_chart(
+            preparar_figura(figc, 430),
+            use_container_width=True,
+            key="ridge_coefficients_chart"
+        )
+
+    else:
+        st.info(
+            "Arquivo de coeficientes Ridge ausente "
+            "ou sem coluna de coeficiente."
+        )
+
+    st.markdown("---")
+
+    titulo_secao(
+        "Valores observados e estimados",
+        "Comparação entre preço observado e séries de previsão no período de teste."
+    )
+
+    predictions_filtered, prediction_date = filtrar_periodo(
+        predictions,
+        start_date,
+        end_date
+    )
+
+    if not predictions_filtered.empty:
+        expected = [
+            "preco_observado",
+            "preco_previsto_baseline",
+            "preco_previsto_linear",
+            "preco_previsto_ridge"
+        ]
+
+        cols = [
+            c for c in expected
+            if c in predictions_filtered.columns
+        ]
+
+        if prediction_date and cols:
+            long = predictions_filtered[
+                [prediction_date] + cols
+            ].melt(
+                id_vars=prediction_date,
+                var_name="Modelo",
+                value_name="Preço"
+            )
+
+            long["Modelo"] = long["Modelo"].map(
+                nome_amigavel
+            )
+
+            figp = px.line(
+                long,
+                x=prediction_date,
+                y="Preço",
+                color="Modelo",
+                labels={
+                    prediction_date: "Período",
+                    "Preço": "Preço"
+                }
+            )
+
+            figp.update_traces(
+                line=dict(width=2.4)
+            )
+
+            figp.update_layout(
+                title="Preço observado e previsões"
+            )
+
+            st.plotly_chart(
+                preparar_figura(figp, 420),
+                use_container_width=True
+            )
+
+        else:
+            grafico(
+                predictions_filtered,
+                "Séries de previsão",
+                altura=400,
+                chave="ridge_predictions"
+            )
+
+    else:
+        st.info(
+            "Arquivo de previsões não encontrado "
+            "ou sem registros no período selecionado."
+        )
+
+
+# ---------------------------- FOOTER ----------------------------
+st.markdown("---")
+
+st.markdown(
+    '<div class="footer-line">AGRODATA PR · Monitoramento e Ciência de Dados no Agronegócio · Estágio Supervisionado · UNICENTRO · 2026</div>',
+    unsafe_allow_html=True
 )
