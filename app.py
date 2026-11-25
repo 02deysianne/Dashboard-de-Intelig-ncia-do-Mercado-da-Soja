@@ -51,34 +51,45 @@ section[data-testid="stSidebar"] * {
     color: #FFFFFF !important;
 }
 
-/* Campo de data sem fundo e sem borda */
+/* Campo de data totalmente transparente */
+section[data-testid="stSidebar"] [data-testid="stDateInput"],
+section[data-testid="stSidebar"] [data-testid="stDateInput"] > div,
+section[data-testid="stSidebar"] [data-testid="stDateInput"] [data-baseweb="input"],
+section[data-testid="stSidebar"] [data-testid="stDateInput"] [data-baseweb="base-input"],
+section[data-testid="stSidebar"] [data-testid="stDateInput"] [data-baseweb="input"] > div,
+section[data-testid="stSidebar"] [data-testid="stDateInput"] [data-baseweb="base-input"] > div {
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* Datas exibidas no campo */
 section[data-testid="stSidebar"] [data-testid="stDateInput"] input {
     color: #FFFFFF !important;
     -webkit-text-fill-color: #FFFFFF !important;
     background: transparent !important;
+    background-color: transparent !important;
     border: none !important;
     box-shadow: none !important;
     outline: none !important;
     caret-color: #FFFFFF !important;
 }
 
-/* Remove o fundo e a borda dos contêineres */
-section[data-testid="stSidebar"] [data-testid="stDateInput"],
-section[data-testid="stSidebar"] [data-testid="stDateInput"] > div,
-section[data-testid="stSidebar"] [data-testid="stDateInput"] [data-baseweb="input"],
-section[data-testid="stSidebar"] [data-testid="stDateInput"] [data-baseweb="base-input"] {
+/* Texto auxiliar */
+section[data-testid="stSidebar"] [data-testid="stDateInput"] input::placeholder {
+    color: #FFFFFF !important;
+    -webkit-text-fill-color: #FFFFFF !important;
+    opacity: 1 !important;
+}
+
+/* Botão e ícone do calendário */
+section[data-testid="stSidebar"] [data-testid="stDateInput"] button {
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
 }
 
-/* Texto auxiliar */
-section[data-testid="stSidebar"] [data-testid="stDateInput"] input::placeholder {
-    color: #FFFFFF !important;
-    -webkit-text-fill-color: #FFFFFF !important;
-}
-
-/* Ícone do calendário */
 section[data-testid="stSidebar"] [data-testid="stDateInput"] svg {
     color: #FFFFFF !important;
     fill: #FFFFFF !important;
@@ -311,27 +322,6 @@ div[data-testid="stMetric"] [data-testid="stMetricValue"] {
 /* Calendário do seletor de datas */
 [data-baseweb="calendar"] * {
     color: #222222 !important;
-}
-/* Corrigir a cor das datas no seletor de período */
-section[data-testid="stSidebar"] [data-testid="stDateInput"] input {
-    color: #000000 !important;
-    -webkit-text-fill-color: #000000 !important;
-    background-color: #000000 !important;
-    caret-color: #000000 !important;
-    opacity: 1 !important;
-}
-
-/* Garantir que o texto digitado e exibido fique preto */
-section[data-testid="stSidebar"] [data-testid="stDateInput"] input::placeholder {
-    color: #000000 !important;
-    -webkit-text-fill-color: #000000 !important;
-    opacity: 1 !important;
-}
-
-/* Ícone do calendário */
-section[data-testid="stSidebar"] [data-testid="stDateInput"] button svg {
-    color: #000000 !important;
-    fill: #000000 !important;
 }
 </style>
 """, unsafe_allow_html=True)
